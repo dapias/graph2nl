@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph2nl"
+version = "0.1.0"
+description = "Validated LLM interpretation of statistical association networks (partial-correlation matrices) as natural language."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Diego Tapias" }]
+dependencies = [
+    "openai>=1.0",
+    "pyyaml",
+    "python-dotenv",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+graph2nl-interpret = "graph2nl.interpret:main"
+graph2nl-validate = "graph2nl.validation.run_validation:main"
+graph2nl-rescore = "graph2nl.validation.rescore:main"
+graph2nl-analyze-failures = "graph2nl.validation.analyze_failures:main"
+
+[tool.setuptools.packages.find]
+include = ["graph2nl*"]
+
+[tool.setuptools.package-data]
+graph2nl_core = ["prompts/*.md"]

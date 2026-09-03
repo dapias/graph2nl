@@ -26,13 +26,13 @@ Usage:
     from graph2nl_core.validation.synthetic_networks import get_network
     test_case = get_network("calibration")
 
-    from graph2nl_core.validation.synthetic_networks import SYNTHETIC_NETWORKS
+    from graph2nl.validation.synthetic_networks import SYNTHETIC_NETWORKS
     for test_case in SYNTHETIC_NETWORKS:
         ...
 
 The full validation suite is normally run through:
 
-    python3 -m graph2nl_core.validation.run_validation --llm-config ...
+    python3 -m graph2nl.validation.run_validation --llm-config ...
 
 Running this file directly only prints a short preview of the available
 test cases. It does not call an LLM or perform scoring.

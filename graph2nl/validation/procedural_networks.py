@@ -24,7 +24,7 @@ test id, competency name, description, and ground truth remain scorer-side
 and are not included in the model input.
 
 Usage:
-    from graph2nl_core.validation.procedural_networks import \
+    from graph2nl.validation.procedural_networks import \
         generate_procedural_networks
 
     networks = generate_procedural_networks(
@@ -34,7 +34,7 @@ Usage:
 
 The procedural validation suite is normally run through:
 
-    python3 -m graph2nl_core.validation.run_validation \
+    python3 -m graph2nl.validation.run_validation \
         --llm-config ... --source procedural
 
 Running this file directly can be used to generate or preview the procedural

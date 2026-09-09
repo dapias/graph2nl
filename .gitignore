@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 results_*/
 *.log
+*.egg-info/
+validation_results/

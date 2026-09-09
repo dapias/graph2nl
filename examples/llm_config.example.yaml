@@ -1,0 +1,38 @@
+# Example LLM config for graph2nl-interpret / graph2nl-validate.
+#
+# Copy this file, edit as needed, and pass it via --llm-config. Any
+# OpenAI-compatible chat completions endpoint works -- change base_url and
+# model to point at a different provider.
+
+# Base URL of an OpenAI-compatible chat completions endpoint.
+# This example targets GWDG's Academic Cloud AI service
+# (https://docs.hpc.gwdg.de/services/chat-ai/); swap for
+# https://api.openai.com/v1, a local vLLM/Ollama server, or any other
+# OpenAI-compatible provider.
+base_url: "https://chat-ai.academiccloud.de/v1"
+
+# Name of the environment variable holding the API key. Set this in your
+# shell or in a .env file in your working directory (python-dotenv is
+# loaded automatically if installed) -- never put the key itself in this
+# file.
+api_key_env: "GWDG_API_KEY"
+
+# Model name as expected by the endpoint above.
+model: "gpt-oss-120b"
+
+# Which bundled prompt template to use: "full_protocol" (default used for
+# this paper's confirmatory results), "scientific_minimal", or "naive" --
+# see graph2nl/prompts/. You can also point this at the path to your own
+# custom prompt template file instead of a bundled name.
+prompt_template: "full_protocol"
+
+# Sampling temperature. 0.3 was used throughout the paper: low enough to
+# stay grounded in the supplied network, non-zero so repeated generations
+# still vary (needed for the --repeats validation runs).
+temperature: 0.3
+
+# Max tokens for the response. full_protocol.md asks for two full sections
+# (plain-language summary + technical interpretation), so this needs to be
+# generous, especially for larger networks (more nodes/edges to discuss)
+# or reasoning models (max_tokens covers any hidden reasoning trace too).
+max_tokens: 4000

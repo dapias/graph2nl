@@ -1,0 +1,104 @@
+{
+  "meta": {
+    "dataset": "SYNTHETIC TEST NETWORK -- not real survey data",
+    "run_name": "synthetic_validation_network",
+    "sample_description": "Synthetic network constructed for interpretation-layer validation.",
+    "method": "Hand-constructed ground-truth network (values fixed directly, no estimation involved)",
+    "modularity": null,
+    "note": "This is a cross-sectional association network (all variables measured at the same time point). Edges are partial correlations (association net of all other nodes in the network), not raw correlations. This network was constructed directly at these exact values, not estimated via regularization -- any pair not listed in the edges above has an association of exactly zero by construction, not an unreported or unmeasured association. No causal interpretation is warranted."
+  },
+  "nodes": [
+    {
+      "id": "Alpha1",
+      "description": "Synthetic survey item Alpha1 (no real-world referent; numbers only).",
+      "theme": "synthetic",
+      "community": 1,
+      "strength_centrality": 0.93,
+      "expected_influence": 0.93
+    },
+    {
+      "id": "Alpha2",
+      "description": "Synthetic survey item Alpha2 (no real-world referent; numbers only).",
+      "theme": "synthetic",
+      "community": 1,
+      "strength_centrality": 0.85,
+      "expected_influence": 0.85
+    },
+    {
+      "id": "Alpha3",
+      "description": "Synthetic survey item Alpha3 (no real-world referent; numbers only).",
+      "theme": "synthetic",
+      "community": 1,
+      "strength_centrality": 0.82,
+      "expected_influence": 0.82
+    },
+    {
+      "id": "Beta1",
+      "description": "Synthetic survey item Beta1 (no real-world referent; numbers only).",
+      "theme": "synthetic",
+      "community": 2,
+      "strength_centrality": 0.91,
+      "expected_influence": 0.91
+    },
+    {
+      "id": "Beta2",
+      "description": "Synthetic survey item Beta2 (no real-world referent; numbers only).",
+      "theme": "synthetic",
+      "community": 2,
+      "strength_centrality": 0.87,
+      "expected_influence": 0.87
+    },
+    {
+      "id": "Beta3",
+      "description": "Synthetic survey item Beta3 (no real-world referent; numbers only).",
+      "theme": "synthetic",
+      "community": 2,
+      "strength_centrality": 0.84,
+      "expected_influence": 0.84
+    }
+  ],
+  "edges": [
+    {
+      "source": "Alpha1",
+      "target": "Alpha2",
+      "weight": 0.45,
+      "sign": "positive"
+    },
+    {
+      "source": "Beta1",
+      "target": "Beta2",
+      "weight": 0.44,
+      "sign": "positive"
+    },
+    {
+      "source": "Beta2",
+      "target": "Beta3",
+      "weight": 0.43,
+      "sign": "positive"
+    },
+    {
+      "source": "Alpha1",
+      "target": "Alpha3",
+      "weight": 0.42,
+      "sign": "positive"
+    },
+    {
+      "source": "Beta1",
+      "target": "Beta3",
+      "weight": 0.41,
+      "sign": "positive"
+    },
+    {
+      "source": "Alpha2",
+      "target": "Alpha3",
+      "weight": 0.4,
+      "sign": "positive"
+    },
+    {
+      "source": "Alpha1",
+      "target": "Beta1",
+      "weight": 0.06,
+      "sign": "positive"
+    }
+  ]
+}

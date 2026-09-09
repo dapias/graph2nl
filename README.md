@@ -103,6 +103,35 @@ graph2nl-validate --llm-config my_llm_config.yaml --test-id calibration
 graph2nl-validate --llm-config my_llm_config.yaml --source procedural  # larger procedurally generated battery
 ```
 
+### Reproducing the procedural benchmark
+
+The procedural battery reported in the paper (15 network instances per
+competency, 90 total, seed 4242) is generated deterministically -- the
+same `--n-per-competency`/`--seed` pair always yields the exact same
+networks, so it isn't checked into this repo as static data.
+
+To run the validation suite against the paper's exact procedural battery:
+
+```bash
+graph2nl-validate --llm-config my_llm_config.yaml --source procedural \
+    --n-per-competency 15 --proc-seed 4242
+```
+
+Note that `graph2nl-validate --source procedural` on its own uses
+different defaults (`--proc-seed 2026`, `--n-per-competency 10` -> 60
+networks) -- a smaller, differently-seeded battery meant for a quick
+local check, not the paper's reported numbers. Always pass `--proc-seed
+4242 --n-per-competency 15` explicitly to reproduce `Tables 3 / Appendix
+D` of the paper.
+
+To inspect the raw network instances themselves (nodes/edges JSON,
+without calling an LLM or running `graph2nl-validate` at all):
+
+```bash
+python3 -m graph2nl.validation.procedural_networks \
+    --n-per-competency 15 --seed 4242 --out procedural_battery_seed4242.json
+```
+
 ## Empirical case studies
 
 `empirical_networks/` contains the two real-network external-validation

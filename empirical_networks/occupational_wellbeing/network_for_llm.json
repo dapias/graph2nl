@@ -1,0 +1,290 @@
+{
+  "meta": {
+    "dataset": "Bereznowski, Atroszko & Konarski (2023), Frontiers in Psychology 14:1130069",
+    "run_name": "rq4_published_network_faithful",
+    "sample_description": "676 working Poles (mean age 36.12, SD 11.23), listwise-complete on BWAS-7/UWES-9/MBI-GS/PSS-10",
+    "n": 676,
+    "method": "qgraph::cor_auto() correlations + bootnet::estimateNetwork(default='EBICglasso', threshold=TRUE), gamma=0.5 -- the paper's own estimation call. Reproduced here: 27 edges (paper: 27), mean|weight|=0.065 (paper: .06), max=0.422 (paper: .42). Community assignment is NOT re-detected (spin-glass is stochastic and was unstable on re-estimation); it is hardcoded from the paper's own reported 4-cluster spin-glass result (Results 3.2). expected_influence is derived here from the published edge matrix (signed row sums) -- the paper's own script does not report this metric, only standard node strength and a modified/bridge strength.",
+    "community_detection_modularity": 0.394,
+    "community_detection_note": "Modularity computed here on |edge weights| for the hardcoded published partition; the paper does not report a modularity value for its spin-glass solution.",
+    "caveat": "Cross-sectional data -- no causal interpretation warranted. EBIC-glasso regularization shrinks small partial correlations to exactly zero; an absent edge is not evidence the population association is zero."
+  },
+  "nodes": [
+    {
+      "id": "salience",
+      "description": "Salience -- work dominates thoughts, feelings, and behavior (Bergen Work Addiction Scale item 1).",
+      "theme": "work_addiction",
+      "community": 1,
+      "strength_centrality": 0.6373,
+      "expected_influence": 0.6373
+    },
+    {
+      "id": "tolerance",
+      "description": "Tolerance -- needing to work increasingly more to achieve the same satisfaction (BWAS item 2).",
+      "theme": "work_addiction",
+      "community": 2,
+      "strength_centrality": 0.746,
+      "expected_influence": 0.746
+    },
+    {
+      "id": "mood_modification",
+      "description": "Mood modification -- working to escape from or improve a negative mood (BWAS item 3).",
+      "theme": "work_addiction",
+      "community": 1,
+      "strength_centrality": 0.5983,
+      "expected_influence": 0.5983
+    },
+    {
+      "id": "relapse",
+      "description": "Relapse -- attempts to cut down on work fail and old patterns resume (BWAS item 4).",
+      "theme": "work_addiction",
+      "community": 2,
+      "strength_centrality": 0.8612,
+      "expected_influence": 0.8612
+    },
+    {
+      "id": "withdrawal",
+      "description": "Withdrawal -- becoming stressed or distressed when prevented from working (BWAS item 5).",
+      "theme": "work_addiction",
+      "community": 1,
+      "strength_centrality": 0.8457,
+      "expected_influence": 0.8457
+    },
+    {
+      "id": "conflict",
+      "description": "Conflict -- work interferes with relationships, hobbies, or other activities (BWAS item 6).",
+      "theme": "work_addiction",
+      "community": 2,
+      "strength_centrality": 0.8475,
+      "expected_influence": 0.8475
+    },
+    {
+      "id": "problems",
+      "description": "Problems -- health or other problems caused by working too much (BWAS item 7).",
+      "theme": "work_addiction",
+      "community": 2,
+      "strength_centrality": 0.722,
+      "expected_influence": 0.722
+    },
+    {
+      "id": "vigor",
+      "description": "Vigor -- high energy and mental resilience while working (UWES-9 subscale).",
+      "theme": "work_engagement",
+      "community": 3,
+      "strength_centrality": 1.1204,
+      "expected_influence": 0.3832
+    },
+    {
+      "id": "dedication",
+      "description": "Dedication -- sense of significance, enthusiasm, pride, and challenge in one's work (UWES-9 subscale).",
+      "theme": "work_engagement",
+      "community": 3,
+      "strength_centrality": 1.2658,
+      "expected_influence": 0.812
+    },
+    {
+      "id": "absorption",
+      "description": "Absorption -- being fully concentrated and engrossed in one's work, with difficulty detaching (UWES-9 subscale).",
+      "theme": "work_engagement",
+      "community": 3,
+      "strength_centrality": 0.8792,
+      "expected_influence": 0.8792
+    },
+    {
+      "id": "exhaustion",
+      "description": "Exhaustion -- feelings of energy depletion from work (MBI-GS subscale).",
+      "theme": "job_burnout",
+      "community": 4,
+      "strength_centrality": 1.0859,
+      "expected_influence": 0.6035
+    },
+    {
+      "id": "cynicism",
+      "description": "Cynicism -- increased mental distance from and negativism toward one's work (MBI-GS subscale).",
+      "theme": "job_burnout",
+      "community": 4,
+      "strength_centrality": 0.7763,
+      "expected_influence": 0.3225
+    },
+    {
+      "id": "professional_efficacy",
+      "description": "Professional efficacy -- sense of competence and accomplishment at work (MBI-GS subscale; higher score = more efficacy, NOT reverse-coded).",
+      "theme": "job_burnout",
+      "community": 3,
+      "strength_centrality": 0.7545,
+      "expected_influence": 0.4256
+    },
+    {
+      "id": "stress",
+      "description": "Perceived stress -- general perceived stress over the past month (PSS-10 total score).",
+      "theme": "perceived_stress",
+      "community": 4,
+      "strength_centrality": 0.7144,
+      "expected_influence": 0.1307
+    }
+  ],
+  "edges": [
+    {
+      "source": "salience",
+      "target": "tolerance",
+      "weight": 0.2209,
+      "sign": "positive"
+    },
+    {
+      "source": "salience",
+      "target": "mood_modification",
+      "weight": 0.1751,
+      "sign": "positive"
+    },
+    {
+      "source": "salience",
+      "target": "withdrawal",
+      "weight": 0.2413,
+      "sign": "positive"
+    },
+    {
+      "source": "tolerance",
+      "target": "relapse",
+      "weight": 0.2815,
+      "sign": "positive"
+    },
+    {
+      "source": "tolerance",
+      "target": "conflict",
+      "weight": 0.2436,
+      "sign": "positive"
+    },
+    {
+      "source": "mood_modification",
+      "target": "withdrawal",
+      "weight": 0.1426,
+      "sign": "positive"
+    },
+    {
+      "source": "mood_modification",
+      "target": "absorption",
+      "weight": 0.1075,
+      "sign": "positive"
+    },
+    {
+      "source": "mood_modification",
+      "target": "stress",
+      "weight": 0.1731,
+      "sign": "positive"
+    },
+    {
+      "source": "relapse",
+      "target": "withdrawal",
+      "weight": 0.1469,
+      "sign": "positive"
+    },
+    {
+      "source": "relapse",
+      "target": "conflict",
+      "weight": 0.168,
+      "sign": "positive"
+    },
+    {
+      "source": "relapse",
+      "target": "problems",
+      "weight": 0.2648,
+      "sign": "positive"
+    },
+    {
+      "source": "withdrawal",
+      "target": "conflict",
+      "weight": 0.1516,
+      "sign": "positive"
+    },
+    {
+      "source": "withdrawal",
+      "target": "absorption",
+      "weight": 0.1633,
+      "sign": "positive"
+    },
+    {
+      "source": "conflict",
+      "target": "problems",
+      "weight": 0.2843,
+      "sign": "positive"
+    },
+    {
+      "source": "problems",
+      "target": "exhaustion",
+      "weight": 0.1729,
+      "sign": "positive"
+    },
+    {
+      "source": "vigor",
+      "target": "dedication",
+      "weight": 0.3597,
+      "sign": "positive"
+    },
+    {
+      "source": "vigor",
+      "target": "absorption",
+      "weight": 0.2285,
+      "sign": "positive"
+    },
+    {
+      "source": "vigor",
+      "target": "exhaustion",
+      "weight": -0.2412,
+      "sign": "negative"
+    },
+    {
+      "source": "vigor",
+      "target": "professional_efficacy",
+      "weight": 0.1636,
+      "sign": "positive"
+    },
+    {
+      "source": "vigor",
+      "target": "stress",
+      "weight": -0.1274,
+      "sign": "negative"
+    },
+    {
+      "source": "dedication",
+      "target": "absorption",
+      "weight": 0.3798,
+      "sign": "positive"
+    },
+    {
+      "source": "dedication",
+      "target": "cynicism",
+      "weight": -0.2269,
+      "sign": "negative"
+    },
+    {
+      "source": "dedication",
+      "target": "professional_efficacy",
+      "weight": 0.2994,
+      "sign": "positive"
+    },
+    {
+      "source": "exhaustion",
+      "target": "cynicism",
+      "weight": 0.4224,
+      "sign": "positive"
+    },
+    {
+      "source": "exhaustion",
+      "target": "stress",
+      "weight": 0.2494,
+      "sign": "positive"
+    },
+    {
+      "source": "cynicism",
+      "target": "professional_efficacy",
+      "weight": 0.127,
+      "sign": "positive"
+    },
+    {
+      "source": "professional_efficacy",
+      "target": "stress",
+      "weight": -0.1645,
+      "sign": "negative"
+    }
+  ]
+}

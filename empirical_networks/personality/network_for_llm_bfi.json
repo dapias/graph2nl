@@ -1,0 +1,749 @@
+{
+  "meta": {
+    "dataset": "psych::bfi (public, built into the R psych/psychTools package)",
+    "run_name": "bfi_five_factor_external_validation",
+    "sample_description": "N=2436 complete cases (of 2800 total) from the public bfi dataset (25-item Big Five Inventory, 6-point Likert scale, 'Very Inaccurate' to 'Very Accurate')",
+    "n": 2436,
+    "method": "Polychoric correlation (qgraph::cor_auto) + EBICglasso regularization (qgraph::EBICglasso, gamma=0.5, threshold=TRUE) -- same correlation+ regularization combination as bootnet::estimateNetwork(default= 'EBICglasso'), called directly. Community membership is the THEORETICAL five-factor structure from the item design (bfi's own documented scoring key), NOT walktrap-detected. strength_centrality/ expected_influence are derived directly from the estimated edge matrix by this export script, not sourced from any published paper.",
+    "community_detection_modularity": 0.2466,
+    "caveat": "Cross-sectional self-report data -- no causal interpretation warranted. Community labels reflect the Big Five's well-established theoretical structure, not blind data-driven detection."
+  },
+  "nodes": [
+    {
+      "id": "A1",
+      "description": "Attends to and is considerate of others' feelings (reverse-coded from original item 'Am indifferent to the feelings of others'; higher = more considerate)",
+      "theme": "Agreeableness",
+      "community": 1,
+      "strength_centrality": 0.5131,
+      "expected_influence": 0.5131
+    },
+    {
+      "id": "A2",
+      "description": "Inquires about others' well-being",
+      "theme": "Agreeableness",
+      "community": 1,
+      "strength_centrality": 1.3175,
+      "expected_influence": 1.2104
+    },
+    {
+      "id": "A3",
+      "description": "Knows how to comfort others",
+      "theme": "Agreeableness",
+      "community": 1,
+      "strength_centrality": 1.0199,
+      "expected_influence": 1.0199
+    },
+    {
+      "id": "A4",
+      "description": "Loves children",
+      "theme": "Agreeableness",
+      "community": 1,
+      "strength_centrality": 0.815,
+      "expected_influence": 0.6809
+    },
+    {
+      "id": "A5",
+      "description": "Makes people feel at ease",
+      "theme": "Agreeableness",
+      "community": 1,
+      "strength_centrality": 0.8666,
+      "expected_influence": 0.7197
+    },
+    {
+      "id": "C1",
+      "description": "Is exacting/careful in their work",
+      "theme": "Conscientiousness",
+      "community": 2,
+      "strength_centrality": 0.8137,
+      "expected_influence": 0.8137
+    },
+    {
+      "id": "C2",
+      "description": "Continues until everything is perfect",
+      "theme": "Conscientiousness",
+      "community": 2,
+      "strength_centrality": 1.2728,
+      "expected_influence": 1.0754
+    },
+    {
+      "id": "C3",
+      "description": "Does things according to a plan",
+      "theme": "Conscientiousness",
+      "community": 2,
+      "strength_centrality": 0.728,
+      "expected_influence": 0.728
+    },
+    {
+      "id": "C4",
+      "description": "Completes tasks thoroughly, not half-way (reverse-coded from 'Do things in a half-way manner'; higher = more thorough)",
+      "theme": "Conscientiousness",
+      "community": 2,
+      "strength_centrality": 1.4223,
+      "expected_influence": 0.9672
+    },
+    {
+      "id": "C5",
+      "description": "Uses time efficiently, does not waste it (reverse-coded from 'Waste my time'; higher = less time-wasting)",
+      "theme": "Conscientiousness",
+      "community": 2,
+      "strength_centrality": 1.1064,
+      "expected_influence": 0.2732
+    },
+    {
+      "id": "E1",
+      "description": "Talks a lot (reverse-coded from 'Don't talk a lot'; higher = more talkative)",
+      "theme": "Extraversion",
+      "community": 3,
+      "strength_centrality": 0.9702,
+      "expected_influence": 0.3664
+    },
+    {
+      "id": "E2",
+      "description": "Finds it easy to approach others (reverse-coded from 'Find it difficult to approach others'; higher = more approachable/sociable)",
+      "theme": "Extraversion",
+      "community": 3,
+      "strength_centrality": 1.2173,
+      "expected_influence": 0.543
+    },
+    {
+      "id": "E3",
+      "description": "Knows how to captivate people",
+      "theme": "Extraversion",
+      "community": 3,
+      "strength_centrality": 1.0297,
+      "expected_influence": 1.0297
+    },
+    {
+      "id": "E4",
+      "description": "Makes friends easily",
+      "theme": "Extraversion",
+      "community": 3,
+      "strength_centrality": 1.3622,
+      "expected_influence": 0.7314
+    },
+    {
+      "id": "E5",
+      "description": "Takes charge",
+      "theme": "Extraversion",
+      "community": 3,
+      "strength_centrality": 1.1722,
+      "expected_influence": 0.9767
+    },
+    {
+      "id": "N1",
+      "description": "Gets angry easily",
+      "theme": "Neuroticism",
+      "community": 4,
+      "strength_centrality": 1.3742,
+      "expected_influence": 0.8364
+    },
+    {
+      "id": "N2",
+      "description": "Gets irritated easily",
+      "theme": "Neuroticism",
+      "community": 4,
+      "strength_centrality": 1.1487,
+      "expected_influence": 0.727
+    },
+    {
+      "id": "N3",
+      "description": "Has frequent mood swings",
+      "theme": "Neuroticism",
+      "community": 4,
+      "strength_centrality": 0.8937,
+      "expected_influence": 0.8937
+    },
+    {
+      "id": "N4",
+      "description": "Often feels blue",
+      "theme": "Neuroticism",
+      "community": 4,
+      "strength_centrality": 1.0326,
+      "expected_influence": 0.2936
+    },
+    {
+      "id": "N5",
+      "description": "Panics easily",
+      "theme": "Neuroticism",
+      "community": 4,
+      "strength_centrality": 1.1226,
+      "expected_influence": 0.3568
+    },
+    {
+      "id": "O1",
+      "description": "Is full of ideas",
+      "theme": "Openness",
+      "community": 5,
+      "strength_centrality": 0.8411,
+      "expected_influence": 0.8411
+    },
+    {
+      "id": "O2",
+      "description": "Engages with difficult reading material (reverse-coded from 'Avoid difficult reading material'; higher = more intellectually curious)",
+      "theme": "Openness",
+      "community": 5,
+      "strength_centrality": 0.8077,
+      "expected_influence": 0.4679
+    },
+    {
+      "id": "O3",
+      "description": "Carries the conversation to a higher level",
+      "theme": "Openness",
+      "community": 5,
+      "strength_centrality": 1.1066,
+      "expected_influence": 0.9302
+    },
+    {
+      "id": "O4",
+      "description": "Spends time reflecting on things",
+      "theme": "Openness",
+      "community": 5,
+      "strength_centrality": 0.9459,
+      "expected_influence": 0.4712
+    },
+    {
+      "id": "O5",
+      "description": "Probes deeply into a subject (reverse-coded from 'Will not probe deeply into a subject'; higher = more intellectually thorough)",
+      "theme": "Openness",
+      "community": 5,
+      "strength_centrality": 1.0224,
+      "expected_influence": 0.6174
+    }
+  ],
+  "edges": [
+    {
+      "source": "A1",
+      "target": "A2",
+      "weight": 0.2855,
+      "sign": "positive"
+    },
+    {
+      "source": "A1",
+      "target": "A3",
+      "weight": 0.1352,
+      "sign": "positive"
+    },
+    {
+      "source": "A2",
+      "target": "A3",
+      "weight": 0.2859,
+      "sign": "positive"
+    },
+    {
+      "source": "A2",
+      "target": "A4",
+      "weight": 0.1683,
+      "sign": "positive"
+    },
+    {
+      "source": "A3",
+      "target": "A4",
+      "weight": 0.1688,
+      "sign": "positive"
+    },
+    {
+      "source": "A2",
+      "target": "A5",
+      "weight": 0.1045,
+      "sign": "positive"
+    },
+    {
+      "source": "A3",
+      "target": "A5",
+      "weight": 0.2804,
+      "sign": "positive"
+    },
+    {
+      "source": "A4",
+      "target": "C2",
+      "weight": 0.1585,
+      "sign": "positive"
+    },
+    {
+      "source": "C1",
+      "target": "C2",
+      "weight": 0.2783,
+      "sign": "positive"
+    },
+    {
+      "source": "A2",
+      "target": "C3",
+      "weight": 0.1242,
+      "sign": "positive"
+    },
+    {
+      "source": "C1",
+      "target": "C3",
+      "weight": 0.1184,
+      "sign": "positive"
+    },
+    {
+      "source": "C2",
+      "target": "C3",
+      "weight": 0.1606,
+      "sign": "positive"
+    },
+    {
+      "source": "A1",
+      "target": "C4",
+      "weight": 0.0924,
+      "sign": "positive"
+    },
+    {
+      "source": "C1",
+      "target": "C4",
+      "weight": 0.1702,
+      "sign": "positive"
+    },
+    {
+      "source": "C2",
+      "target": "C4",
+      "weight": 0.2365,
+      "sign": "positive"
+    },
+    {
+      "source": "C3",
+      "target": "C4",
+      "weight": 0.1408,
+      "sign": "positive"
+    },
+    {
+      "source": "A4",
+      "target": "C5",
+      "weight": 0.1246,
+      "sign": "positive"
+    },
+    {
+      "source": "C3",
+      "target": "C5",
+      "weight": 0.1841,
+      "sign": "positive"
+    },
+    {
+      "source": "C4",
+      "target": "C5",
+      "weight": 0.3038,
+      "sign": "positive"
+    },
+    {
+      "source": "C2",
+      "target": "E1",
+      "weight": -0.0987,
+      "sign": "negative"
+    },
+    {
+      "source": "C5",
+      "target": "E1",
+      "weight": -0.0915,
+      "sign": "negative"
+    },
+    {
+      "source": "C5",
+      "target": "E2",
+      "weight": 0.0773,
+      "sign": "positive"
+    },
+    {
+      "source": "E1",
+      "target": "E2",
+      "weight": 0.2594,
+      "sign": "positive"
+    },
+    {
+      "source": "A3",
+      "target": "E3",
+      "weight": 0.1496,
+      "sign": "positive"
+    },
+    {
+      "source": "A5",
+      "target": "E3",
+      "weight": 0.1654,
+      "sign": "positive"
+    },
+    {
+      "source": "E2",
+      "target": "E3",
+      "weight": 0.098,
+      "sign": "positive"
+    },
+    {
+      "source": "A4",
+      "target": "E4",
+      "weight": 0.1277,
+      "sign": "positive"
+    },
+    {
+      "source": "A5",
+      "target": "E4",
+      "weight": 0.2428,
+      "sign": "positive"
+    },
+    {
+      "source": "C1",
+      "target": "E4",
+      "weight": 0.0652,
+      "sign": "positive"
+    },
+    {
+      "source": "E1",
+      "target": "E4",
+      "weight": 0.2109,
+      "sign": "positive"
+    },
+    {
+      "source": "E2",
+      "target": "E4",
+      "weight": 0.2888,
+      "sign": "positive"
+    },
+    {
+      "source": "E3",
+      "target": "E4",
+      "weight": 0.1114,
+      "sign": "positive"
+    },
+    {
+      "source": "A2",
+      "target": "E5",
+      "weight": 0.1429,
+      "sign": "positive"
+    },
+    {
+      "source": "C1",
+      "target": "E5",
+      "weight": 0.0931,
+      "sign": "positive"
+    },
+    {
+      "source": "C2",
+      "target": "E5",
+      "weight": 0.1056,
+      "sign": "positive"
+    },
+    {
+      "source": "E1",
+      "target": "E5",
+      "weight": 0.1015,
+      "sign": "positive"
+    },
+    {
+      "source": "E2",
+      "target": "E5",
+      "weight": 0.1566,
+      "sign": "positive"
+    },
+    {
+      "source": "E3",
+      "target": "E5",
+      "weight": 0.1447,
+      "sign": "positive"
+    },
+    {
+      "source": "A2",
+      "target": "N1",
+      "weight": -0.0535,
+      "sign": "negative"
+    },
+    {
+      "source": "A5",
+      "target": "N1",
+      "weight": -0.0734,
+      "sign": "negative"
+    },
+    {
+      "source": "C4",
+      "target": "N1",
+      "weight": -0.0635,
+      "sign": "negative"
+    },
+    {
+      "source": "E5",
+      "target": "N1",
+      "weight": 0.1103,
+      "sign": "positive"
+    },
+    {
+      "source": "A4",
+      "target": "N2",
+      "weight": -0.0671,
+      "sign": "negative"
+    },
+    {
+      "source": "C5",
+      "target": "N2",
+      "weight": -0.0854,
+      "sign": "negative"
+    },
+    {
+      "source": "E2",
+      "target": "N2",
+      "weight": -0.0584,
+      "sign": "negative"
+    },
+    {
+      "source": "E5",
+      "target": "N2",
+      "weight": 0.084,
+      "sign": "positive"
+    },
+    {
+      "source": "N1",
+      "target": "N2",
+      "weight": 0.5934,
+      "sign": "positive"
+    },
+    {
+      "source": "N1",
+      "target": "N3",
+      "weight": 0.2238,
+      "sign": "positive"
+    },
+    {
+      "source": "N2",
+      "target": "N3",
+      "weight": 0.1894,
+      "sign": "positive"
+    },
+    {
+      "source": "C5",
+      "target": "N4",
+      "weight": -0.1541,
+      "sign": "negative"
+    },
+    {
+      "source": "E1",
+      "target": "N4",
+      "weight": -0.1118,
+      "sign": "negative"
+    },
+    {
+      "source": "E4",
+      "target": "N4",
+      "weight": -0.1036,
+      "sign": "negative"
+    },
+    {
+      "source": "N1",
+      "target": "N4",
+      "weight": 0.0729,
+      "sign": "positive"
+    },
+    {
+      "source": "N3",
+      "target": "N4",
+      "weight": 0.3089,
+      "sign": "positive"
+    },
+    {
+      "source": "A2",
+      "target": "N5",
+      "weight": 0.0777,
+      "sign": "positive"
+    },
+    {
+      "source": "C2",
+      "target": "N5",
+      "weight": 0.1222,
+      "sign": "positive"
+    },
+    {
+      "source": "C4",
+      "target": "N5",
+      "weight": -0.0759,
+      "sign": "negative"
+    },
+    {
+      "source": "E1",
+      "target": "N5",
+      "weight": 0.0965,
+      "sign": "positive"
+    },
+    {
+      "source": "E2",
+      "target": "N5",
+      "weight": -0.1271,
+      "sign": "negative"
+    },
+    {
+      "source": "E5",
+      "target": "N5",
+      "weight": -0.0977,
+      "sign": "negative"
+    },
+    {
+      "source": "N1",
+      "target": "N5",
+      "weight": 0.1048,
+      "sign": "positive"
+    },
+    {
+      "source": "N3",
+      "target": "N5",
+      "weight": 0.1716,
+      "sign": "positive"
+    },
+    {
+      "source": "N4",
+      "target": "N5",
+      "weight": 0.1668,
+      "sign": "positive"
+    },
+    {
+      "source": "E3",
+      "target": "O1",
+      "weight": 0.1594,
+      "sign": "positive"
+    },
+    {
+      "source": "E5",
+      "target": "O1",
+      "weight": 0.1357,
+      "sign": "positive"
+    },
+    {
+      "source": "C4",
+      "target": "O2",
+      "weight": 0.125,
+      "sign": "positive"
+    },
+    {
+      "source": "E4",
+      "target": "O2",
+      "weight": -0.0877,
+      "sign": "negative"
+    },
+    {
+      "source": "N5",
+      "target": "O2",
+      "weight": -0.0822,
+      "sign": "negative"
+    },
+    {
+      "source": "O1",
+      "target": "O2",
+      "weight": 0.1123,
+      "sign": "positive"
+    },
+    {
+      "source": "C2",
+      "target": "O3",
+      "weight": 0.1124,
+      "sign": "positive"
+    },
+    {
+      "source": "C4",
+      "target": "O3",
+      "weight": -0.0882,
+      "sign": "negative"
+    },
+    {
+      "source": "E3",
+      "target": "O3",
+      "weight": 0.2012,
+      "sign": "positive"
+    },
+    {
+      "source": "O1",
+      "target": "O3",
+      "weight": 0.1802,
+      "sign": "positive"
+    },
+    {
+      "source": "O2",
+      "target": "O3",
+      "weight": 0.208,
+      "sign": "positive"
+    },
+    {
+      "source": "A2",
+      "target": "O4",
+      "weight": 0.0749,
+      "sign": "positive"
+    },
+    {
+      "source": "C1",
+      "target": "O4",
+      "weight": 0.0885,
+      "sign": "positive"
+    },
+    {
+      "source": "C5",
+      "target": "O4",
+      "weight": -0.0857,
+      "sign": "negative"
+    },
+    {
+      "source": "E2",
+      "target": "O4",
+      "weight": -0.1517,
+      "sign": "negative"
+    },
+    {
+      "source": "N4",
+      "target": "O4",
+      "weight": 0.1144,
+      "sign": "positive"
+    },
+    {
+      "source": "O1",
+      "target": "O4",
+      "weight": 0.1502,
+      "sign": "positive"
+    },
+    {
+      "source": "O3",
+      "target": "O4",
+      "weight": 0.135,
+      "sign": "positive"
+    },
+    {
+      "source": "C4",
+      "target": "O5",
+      "weight": 0.1259,
+      "sign": "positive"
+    },
+    {
+      "source": "E4",
+      "target": "O5",
+      "weight": -0.1241,
+      "sign": "negative"
+    },
+    {
+      "source": "N1",
+      "target": "O5",
+      "weight": -0.0784,
+      "sign": "negative"
+    },
+    {
+      "source": "N2",
+      "target": "O5",
+      "weight": 0.0711,
+      "sign": "positive"
+    },
+    {
+      "source": "O1",
+      "target": "O5",
+      "weight": 0.1033,
+      "sign": "positive"
+    },
+    {
+      "source": "O2",
+      "target": "O5",
+      "weight": 0.1924,
+      "sign": "positive"
+    },
+    {
+      "source": "O3",
+      "target": "O5",
+      "weight": 0.1816,
+      "sign": "positive"
+    },
+    {
+      "source": "O4",
+      "target": "O5",
+      "weight": 0.1456,
+      "sign": "positive"
+    }
+  ]
+}

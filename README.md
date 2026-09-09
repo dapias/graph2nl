@@ -103,6 +103,18 @@ graph2nl-validate --llm-config my_llm_config.yaml --test-id calibration
 graph2nl-validate --llm-config my_llm_config.yaml --source procedural  # larger procedurally generated battery
 ```
 
+## Empirical case studies
+
+`empirical_networks/` contains the two real-network external-validation
+case studies from the paper (Section 5.2): the Occupational Well-Being
+network (Bereznowski et al., 2023) and the Personality network (25-item
+BFI). Each subfolder has the export script that builds a
+`network_for_llm.json`-schema file from source data, plus that script's
+actual verified output -- raw survey data itself is not redistributed
+here (both sources are already public elsewhere); see
+`empirical_networks/README.md` for exact provenance and how to reproduce
+each one.
+
 ## Package layout
 
 ```
@@ -117,6 +129,9 @@ graph2nl/
 examples/
   llm_config.example.yaml
   network_for_llm.example.json
+empirical_networks/
+  occupational_wellbeing/  # Bereznowski et al. (2023) reproduction
+  personality/              # BFI five-factor network
 ```
 
 ## Citation

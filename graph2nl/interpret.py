@@ -288,7 +288,7 @@ def main():
 
     out_path = pathlib.Path(args.out) if args.out else \
         network_path.with_name(network_path.stem + "_interpretation.md")
-    out_path.write_text(interpretation)
+    out_path.write_text(interpretation, encoding="utf-8")
 
     audit = {
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",

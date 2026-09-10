@@ -185,7 +185,7 @@ def main():
             case_dir = out_dir / test_case["id"]
             case_dir.mkdir(exist_ok=True)
             suffix = f"_rep{rep}" if args.repeats > 1 else ""
-            with open(case_dir / f"output{suffix}.md", "w") as f:
+            with open(case_dir / f"output{suffix}.md", "w", encoding="utf-8") as f:
                 f.write(llm_text if llm_text is not None else f"[LLM call error: {error_message}]")
             with open(case_dir / f"score{suffix}.json", "w") as f:
                 json.dump(result, f, indent=2)

@@ -71,9 +71,9 @@ specifically:
   "community detection". Describe relationships in plain terms instead.
 - Still calibrate language honestly to association magnitude -- do not
   describe a weak association as if it were a strong one; use phrasing
-  such as "somewhat more likely" or "a small tendency" for weak effects,
-  and reserve stronger language ("clearly linked", "go hand in hand") for
-  the genuinely strong edges.
+  such as "a small tendency" or "tend to vary together, but only weakly"
+  for weak associations, and reserve stronger language ("clearly linked",
+  "go hand in hand") for genuinely strong associations.
 - Describe relationships as associations, not probability statements: use
   phrasing such as "tend to go together", "people reporting higher X also
   tend to report higher Y" (or "...tend to report lower Y" for a negative

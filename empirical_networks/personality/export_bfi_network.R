@@ -2,7 +2,12 @@
 # export_bfi_network.R -- builds network_for_llm.json from the public,
 # built-in psych::bfi (25-item Big Five Inventory) dataset, for use as a
 # second, genuinely public real-network external-validation case study
-# alongside Bereznowski et al. 2023 (see rq4_case_study_bwas_uwes_mbi_pss.md).
+# alongside Bereznowski et al. 2023 (see case_studies/bereznowski/).
+#
+# DATA SOURCE: psych::bfi is bundled directly in the R psych/psychTools
+# package (Revelle, W. psych: Procedures for Psychological, Psychometric,
+# and Personality Research. Northwestern University. https://CRAN.R-
+# project.org/package=psych) -- no external data file, no access request.
 #
 # GROUND TRUTH CHOICE: the five-factor item groupings (Agreeableness,
 # Conscientiousness, Extraversion, Neuroticism, Openness) are used as the
@@ -23,18 +28,16 @@
 # ESTIMATION: qgraph::cor_auto() (polychoric, appropriate for 6-point
 # ordinal items) + qgraph::EBICglasso(gamma=0.5, threshold=TRUE) -- the
 # same correlation + regularization combination bootnet::estimateNetwork(
-# default="EBICglasso") uses internally. bootnet itself wasn't installable
-# in the sandbox that authored this script (no CRAN network access there),
-# so this calls the same two underlying functions directly. If you have
-# bootnet available, feel free to swap in
-# bootnet::estimateNetwork(df_complete, default="EBICglasso", threshold=TRUE)
-# for closer parity with how export_published_network.R called it for
-# Bereznowski -- results should be numerically identical, same defaults.
+# default="EBICglasso") uses internally. 
 #
 # expected_influence/strength_centrality are derived directly from the
 # estimated edge matrix by THIS script, not sourced from any published
 # paper -- flagged as such in meta.method, same convention as
 # export_published_network.R used for Bereznowski.
+#
+# REPRODUCIBILITY: package versions used to produce the delivered
+# network_for_llm_bfi.json and figure are captured to sessionInfo_bfi.txt
+# at the end of this script (step 8) -- see that file for exact pins.
 
 suppressMessages({
   if (requireNamespace("psychTools", quietly = TRUE)) {
@@ -45,6 +48,10 @@ suppressMessages({
   library(qgraph)
   library(jsonlite)
 })
+
+set.seed(42)  # fixes the spring-layout figure's node positions across reruns;
+              # has no effect on estimation (cor_auto/EBICglasso are deterministic
+              # given the same data)
 
 data(bfi)
 
@@ -58,16 +65,34 @@ df <- bfi[, items]
 reverse_items <- c("A1", "C4", "C5", "E1", "E2", "O2", "O5")
 for (it in reverse_items) df[[it]] <- 7 - df[[it]]
 
-# Listwise deletion, same discipline as export_published_network.R used for
-# Bereznowski (script.R's own approach, reused faithfully there).
+# Listwise deletion, same discipline as used for
+# Bereznowski
 df_complete <- df[complete.cases(df), ]
 n_total <- nrow(bfi)
 n_complete <- nrow(df_complete)
 cat(sprintf("N: %d total, %d complete cases (listwise deletion)\n", n_total, n_complete))
 
+# --- 2. Correlation + admissibility check -----------------------------------
+# Check whether the raw polychoric matrix is already positive-definite
+# BEFORE applying cor_auto's forcePD correction, so a correction is logged
+# rather than silently applied.
+cor_mat_raw <- tryCatch(
+  qgraph::cor_auto(df_complete, forcePD = FALSE),
+  error = function(e) NULL
+)
+pd_needed <- TRUE
+if (!is.null(cor_mat_raw)) {
+  min_eig <- min(eigen(cor_mat_raw, symmetric = TRUE, only.values = TRUE)$values)
+  pd_needed <- min_eig <= 0
+  cat(sprintf("Raw polychoric matrix: min eigenvalue = %.6f (%s)\n",
+              min_eig, if (pd_needed) "NOT positive-definite -- forcePD correction applied below" else "already positive-definite -- forcePD correction is a no-op"))
+} else {
+  cat("Raw (uncorrected) polychoric matrix could not be computed directly; proceeding with forcePD=TRUE only.\n")
+}
+cor_mat <- qgraph::cor_auto(df_complete, forcePD = TRUE)
+
 # Polychoric correlation (items are 6-point ordinal) + EBICglasso
 # regularization, gamma=0.5 (qgraph/bootnet default)
-cor_mat <- qgraph::cor_auto(df_complete, forcePD = TRUE)
 net <- qgraph::EBICglasso(cor_mat, n = n_complete, gamma = 0.5, threshold = TRUE)
 colnames(net) <- rownames(net) <- items
 
@@ -162,9 +187,15 @@ meta <- list(
     "regularization combination as bootnet::estimateNetwork(default=",
     "'EBICglasso'), called directly. Community membership is the",
     "THEORETICAL five-factor structure from the item design (bfi's own",
-    "documented scoring key), NOT walktrap-detected. strength_centrality/",
-    "expected_influence are derived directly from the estimated edge matrix",
-    "by this export script, not sourced from any published paper."
+    "documented scoring key), NOT walktrap-detected -- so the",
+    "'community_detection_modularity' field below is the modularity of a",
+    "FIXED, theory-supplied partition, not a data-driven detection result",
+    "(contrast with production networks elsewhere in this project, where",
+    "the same field name is computed from actual walktrap detection).",
+    "strength_centrality/expected_influence are derived directly from the",
+    "estimated edge matrix by this export script, not sourced from any",
+    "published paper.",
+    if (pd_needed) "The raw polychoric matrix required forcePD correction (see console log at generation time)." else "The raw polychoric matrix was already positive-definite; forcePD had no effect."
   ),
   community_detection_modularity = modularity_val,
   caveat = paste(
@@ -179,11 +210,13 @@ out_path <- "network_for_llm_bfi.json"
 write(jsonlite::toJSON(out, auto_unbox = TRUE, pretty = TRUE, na = "null"), out_path)
 cat(sprintf("Wrote %s: %d nodes, %d edges\n", out_path, length(nodes), length(edges)))
 
+
 # ---------------------------------------------------------------------------
 # Figure: qgraph plot of the estimated network, styled consistently with the
 # Occupational Well-Being network figure (community-colored nodes, blue/red
 # edges for sign, edge width by |weight|). Reuses `net`, `items`, and
 # `community_id` from the estimation above rather than re-reading the JSON.
+# set.seed() above fixes the spring layout so this figure is reproducible.
 # ---------------------------------------------------------------------------
 
 factor_names <- c("Agreeableness", "Conscientiousness", "Extraversion", "Neuroticism", "Openness")
@@ -203,11 +236,18 @@ qgraph(net,
        negCol = "#D9534F",
        edge.width = 1.1,
        fade = TRUE,
-       legend = TRUE,
-       legend.cex = 0.35,
+       legend = FALSE,
+       #legend.cex = 0.35,
        layoutScale = c(0.9, 0.9),
        border.width = 1.2,
        label.color = "black")
 dev.off()
 
 cat(sprintf("Wrote %s\n", fig_path))
+
+# ---------------------------------------------------------------------------
+# 8. Reproducibility: pin the exact package/R versions used for this run.
+# ---------------------------------------------------------------------------
+sessioninfo_path <- "sessionInfo_bfi.txt"
+writeLines(capture.output(sessionInfo()), sessioninfo_path)
+cat(sprintf("Wrote %s\n", sessioninfo_path))

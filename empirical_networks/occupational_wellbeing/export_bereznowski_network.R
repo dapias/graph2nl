@@ -1,5 +1,5 @@
 # =========================================================================
-# export_published_network.R
+# export_bereznowski_network.R
 #
 # Builds network_for_llm.json from the PAPER'S OWN analysis, not a
 # reimplementation. Sections 1-2 below reuse Bereznowski et al. (2023)'s
@@ -29,6 +29,14 @@
 # it) -- this is the more faithful choice for an external-validation
 # comparison against the paper's own Discussion.
 #
+# OUTPUT LOCATION: network_for_llm.json, the figure, and the sessionInfo
+# capture are all written to THIS SCRIPT's own directory (via
+# .get_script_dir(), same resolution logic used below to locate the input
+# data), not R's working directory -- a bare relative filename like
+# "network_for_llm.json" would otherwise land wherever R's cwd happens to
+# be at call time (e.g. the repo root, if run via RStudio's Source button
+# or `Rscript` from elsewhere), not necessarily next to this script.
+#
 # REPRODUCIBILITY: package versions used to produce the delivered
 # network_for_llm.json and figures are captured to sessionInfo_bereznowski.txt
 # at the end of this script (section 10) -- see that file for exact pins.
@@ -42,21 +50,19 @@ library(igraph)
 library(qgraph)
 library(jsonlite)
 
-# --- 0. Locate the data ------------------------------------------------------
-# Not bundled with this repo -- see the header note above. Defaults to a
-# `data/` subdirectory next to this script; override with an environment
-# variable if you keep the OSF download elsewhere.
-# 1. `Rscript path/to/file.R` from a terminal
+# --- 0. Locate the script's own directory, and the data ---------------------
+# Used both to find dataset.csv (below) and, later, as the write location
+# for every output this script produces (section 8 onward).
 .get_script_dir <- function() {
   # 1. `Rscript path/to/file.R` from a terminal
   args <- commandArgs(trailingOnly = FALSE)
   file_arg <- sub("^--file=", "", grep("^--file=", args, value = TRUE))
   if (length(file_arg) == 1) return(dirname(normalizePath(file_arg)))
-  
+
   # 2. base::source("path/to/file.R") -- sets `ofile` in the sourcing frame
   ofile <- tryCatch(sys.frames()[[1]]$ofile, error = function(e) NULL)
   if (!is.null(ofile) && nzchar(ofile)) return(dirname(normalizePath(ofile)))
-  
+
   # 3. RStudio's "Source" button, or running interactively with this file
   #    open as the active editor tab -- neither of the above sets anything,
   #    but the file's own path is still recoverable via rstudioapi.
@@ -65,16 +71,21 @@ library(jsonlite)
     ctx <- tryCatch(rstudioapi::getSourceEditorContext(), error = function(e) NULL)
     if (!is.null(ctx) && nzchar(ctx$path)) return(dirname(normalizePath(ctx$path)))
   }
-  
+
   # 4. Give up -- caller falls back to the working directory, which is only
   #    correct if you setwd()'d here (or launched R/RStudio from here) first.
   getwd()
 }
 
+# Resolved once, reused for both input (section 0-1) and every output
+# (sections 8-10) -- avoids recomputing (and re-querying rstudioapi) on
+# every write, and guarantees input/output resolution can't disagree.
+SCRIPT_DIR <- .get_script_dir()
+
 env_path <- Sys.getenv("GRAPH2NL_BEREZNOWSKI_DATA", unset = NA)
 candidates <- c(
   env_path,
-  file.path(.get_script_dir(), "data", "dataset.csv"),
+  file.path(SCRIPT_DIR, "data", "dataset.csv"),
   file.path("data", "dataset.csv")
 )
 candidates <- candidates[!is.na(candidates)]
@@ -83,7 +94,7 @@ found <- candidates[file.exists(candidates)]
 if (length(found) == 0) {
   stop(sprintf(
     "Could not find dataset.csv in any of:\n  %s\nDetected script directory: %s\nCurrent working directory: %s\nIf the script directory above is wrong, you likely ran this via source()/console-paste rather than `Rscript file.R`, and rstudioapi (if installed) also couldn't resolve it -- setwd() to the script's folder first, or set GRAPH2NL_BEREZNOWSKI_DATA to the full path of dataset.csv. Download the file itself from https://osf.io/jvqfa/ (Bereznowski, Atroszko & Konarski, 2023) if you don't already have it.",
-    paste(candidates, collapse = "\n  "), .get_script_dir(), getwd()
+    paste(candidates, collapse = "\n  "), SCRIPT_DIR, getwd()
   ))
 }
 DATA_PATH <- found[1]
@@ -256,8 +267,9 @@ network_for_llm <- list(
   edges = edges
 )
 
-write_json(network_for_llm, "network_for_llm.json", pretty = TRUE, auto_unbox = TRUE, digits = 4)
-cat("Wrote network_for_llm.json:", length(nodes), "nodes,", length(edges), "edges.\n")
+json_path <- file.path(SCRIPT_DIR, "network_for_llm.json")
+write_json(network_for_llm, json_path, pretty = TRUE, auto_unbox = TRUE, digits = 4)
+cat(sprintf("Wrote %s: %d nodes, %d edges\n", json_path, length(nodes), length(edges)))
 
 
 # =========================================================================
@@ -301,7 +313,8 @@ community_colors <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3")
 # nodes and smaller label text to fit without overflowing the circles.
 # Title and community legend removed here -- both moved to the LaTeX
 # figure caption instead (community names + label--Table 11 mapping).
-pdf("occupational_wellbeing_network.pdf", width = 8, height = 8)
+fig_path <- file.path(SCRIPT_DIR, "occupational_wellbeing_network.pdf")
+pdf(fig_path, width = 8, height = 8)
 qgraph(
   W,
   layout      = "spring",
@@ -320,12 +333,11 @@ qgraph(
 )
 dev.off()
 
-
-cat("Wrote occupational_wellbeing_network.pdf\n")
+cat(sprintf("Wrote %s\n", fig_path))
 
 # =========================================================================
 # 10. Reproducibility: pin the exact package/R versions used for this run.
 # =========================================================================
-sessioninfo_path <- "sessionInfo_bereznowski.txt"
+sessioninfo_path <- file.path(SCRIPT_DIR, "sessionInfo_bereznowski.txt")
 writeLines(capture.output(sessionInfo()), sessioninfo_path)
 cat(sprintf("Wrote %s\n", sessioninfo_path))

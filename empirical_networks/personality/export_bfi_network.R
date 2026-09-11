@@ -2,7 +2,7 @@
 # export_bfi_network.R -- builds network_for_llm.json from the public,
 # built-in psych::bfi (25-item Big Five Inventory) dataset, for use as a
 # second, genuinely public real-network external-validation case study
-# alongside Bereznowski et al. 2023 (see case_studies/bereznowski/).
+# alongside Bereznowski et al. 2023 (see empirical_networks/occupational_wellbeing/).
 #
 # DATA SOURCE: psych::bfi is bundled directly in the R psych/psychTools
 # package (Revelle, W. psych: Procedures for Psychological, Psychometric,
@@ -28,16 +28,33 @@
 # ESTIMATION: qgraph::cor_auto() (polychoric, appropriate for 6-point
 # ordinal items) + qgraph::EBICglasso(gamma=0.5, threshold=TRUE) -- the
 # same correlation + regularization combination bootnet::estimateNetwork(
-# default="EBICglasso") uses internally. 
+# default="EBICglasso") uses internally. bootnet itself wasn't installable
+# in the sandbox that authored this script (no CRAN network access there),
+# so this calls the same two underlying functions directly. If you have
+# bootnet available, feel free to swap in
+# bootnet::estimateNetwork(df_complete, default="EBICglasso", threshold=TRUE)
+# for closer parity with how export_published_network.R called it for
+# Bereznowski -- results should be numerically identical, same defaults.
+#
+# ADMISSIBILITY: cor_auto()'s forcePD correction is checked explicitly
+# below (not silently applied) -- see step 2 -- and logged, matching the
+# positive-definiteness discipline used elsewhere in this project (procedural
+# networks are checked and rejected outright if not admissible; here, since
+# this is a fixed empirical case study rather than a generated network, we
+# report whether correction was needed rather than rejecting).
 #
 # expected_influence/strength_centrality are derived directly from the
 # estimated edge matrix by THIS script, not sourced from any published
 # paper -- flagged as such in meta.method, same convention as
 # export_published_network.R used for Bereznowski.
 #
-# REPRODUCIBILITY: package versions used to produce the delivered
-# network_for_llm_bfi.json and figure are captured to sessionInfo_bfi.txt
-# at the end of this script (step 8) -- see that file for exact pins.
+# OUTPUT LOCATION: network_for_llm_bfi.json, the figure, and the
+# sessionInfo capture are all written to THIS SCRIPT's own directory (via
+# .get_script_dir()), not R's working directory -- a bare relative
+# filename like "network_for_llm_bfi.json" would otherwise land wherever
+# R's cwd happens to be at call time (e.g. the repo root, if run via
+# RStudio's Source button or `Rscript` from elsewhere), not necessarily
+# next to this script.
 
 suppressMessages({
   if (requireNamespace("psychTools", quietly = TRUE)) {
@@ -53,6 +70,34 @@ set.seed(42)  # fixes the spring-layout figure's node positions across reruns;
               # has no effect on estimation (cor_auto/EBICglasso are deterministic
               # given the same data)
 
+# --- 0. Locate the script's own directory -----------------------------------
+# Reused below as the write location for every output this script produces
+# (JSON, figure, sessionInfo) -- see the OUTPUT LOCATION note above.
+.get_script_dir <- function() {
+  # 1. `Rscript path/to/file.R` from a terminal
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- sub("^--file=", "", grep("^--file=", args, value = TRUE))
+  if (length(file_arg) == 1) return(dirname(normalizePath(file_arg)))
+
+  # 2. base::source("path/to/file.R") -- sets `ofile` in the sourcing frame
+  ofile <- tryCatch(sys.frames()[[1]]$ofile, error = function(e) NULL)
+  if (!is.null(ofile) && nzchar(ofile)) return(dirname(normalizePath(ofile)))
+
+  # 3. RStudio's "Source" button, or running interactively with this file
+  #    open as the active editor tab -- neither of the above sets anything,
+  #    but the file's own path is still recoverable via rstudioapi.
+  if (requireNamespace("rstudioapi", quietly = TRUE) &&
+      tryCatch(rstudioapi::isAvailable(), error = function(e) FALSE)) {
+    ctx <- tryCatch(rstudioapi::getSourceEditorContext(), error = function(e) NULL)
+    if (!is.null(ctx) && nzchar(ctx$path)) return(dirname(normalizePath(ctx$path)))
+  }
+
+  # 4. Give up -- caller falls back to the working directory, which is only
+  #    correct if you setwd()'d here (or launched R/RStudio from here) first.
+  getwd()
+}
+SCRIPT_DIR <- .get_script_dir()
+
 data(bfi)
 
 item_prefixes <- c("A", "C", "E", "N", "O")
@@ -65,8 +110,8 @@ df <- bfi[, items]
 reverse_items <- c("A1", "C4", "C5", "E1", "E2", "O2", "O5")
 for (it in reverse_items) df[[it]] <- 7 - df[[it]]
 
-# Listwise deletion, same discipline as used for
-# Bereznowski
+# Listwise deletion, same discipline as export_published_network.R used for
+# Bereznowski (script.R's own approach, reused faithfully there).
 df_complete <- df[complete.cases(df), ]
 n_total <- nrow(bfi)
 n_complete <- nrow(df_complete)
@@ -206,9 +251,9 @@ meta <- list(
 )
 
 out <- list(meta = meta, nodes = nodes, edges = edges)
-out_path <- "network_for_llm_bfi.json"
-write(jsonlite::toJSON(out, auto_unbox = TRUE, pretty = TRUE, na = "null"), out_path)
-cat(sprintf("Wrote %s: %d nodes, %d edges\n", out_path, length(nodes), length(edges)))
+json_path <- file.path(SCRIPT_DIR, "network_for_llm_bfi.json")
+write(jsonlite::toJSON(out, auto_unbox = TRUE, pretty = TRUE, na = "null"), json_path)
+cat(sprintf("Wrote %s: %d nodes, %d edges\n", json_path, length(nodes), length(edges)))
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +268,7 @@ factor_names <- c("Agreeableness", "Conscientiousness", "Extraversion", "Neuroti
 palette <- c("#66C2A5", "#8DA0CB", "#FC8D62", "#E78AC3", "#A6D854")
 group_factor <- factor(factor_names[community_id[items]], levels = factor_names)
 
-fig_path <- "bfi_personality_network.pdf"
+fig_path <- file.path(SCRIPT_DIR, "bfi_personality_network.pdf")
 pdf(fig_path, width = 8, height = 8)
 qgraph(net,
        layout = "spring",
@@ -248,6 +293,6 @@ cat(sprintf("Wrote %s\n", fig_path))
 # ---------------------------------------------------------------------------
 # 8. Reproducibility: pin the exact package/R versions used for this run.
 # ---------------------------------------------------------------------------
-sessioninfo_path <- "sessionInfo_bfi.txt"
+sessioninfo_path <- file.path(SCRIPT_DIR, "sessionInfo_bfi.txt")
 writeLines(capture.output(sessionInfo()), sessioninfo_path)
 cat(sprintf("Wrote %s\n", sessioninfo_path))

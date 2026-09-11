@@ -1,6 +1,6 @@
 {
   "meta": {
-    "dataset": "Bereznowski, Atroszko & Konarski (2023), Frontiers in Psychology 14:1130069",
+    "dataset": "Bereznowski, Atroszko & Konarski (2023), Frontiers in Psychology 14:1130069 (data/code: https://osf.io/jvqfa/, CC BY 4.0)",
     "run_name": "rq4_published_network_faithful",
     "sample_description": "676 working Poles (mean age 36.12, SD 11.23), listwise-complete on BWAS-7/UWES-9/MBI-GS/PSS-10",
     "n": 676,

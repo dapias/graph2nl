@@ -16,8 +16,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] igraph_2.3.3     dplyr_1.1.4      bootnet_1.8      ggplot2_3.5.2    jsonlite_2.0.0   qgraph_1.10.1   
-[7] psychTools_2.6.4
+[1] jsonlite_2.0.0 qgraph_1.10.1  igraph_2.3.3   dplyr_1.1.4    bootnet_1.8    ggplot2_3.5.2 
 
 loaded via a namespace (and not attached):
   [1] Rdpack_2.6.4         mnormt_2.1.2         pbapply_1.7-4        polynom_1.4-1        gridExtra_2.3       

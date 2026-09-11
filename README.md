@@ -26,7 +26,10 @@ cd graph2nl
 pip install -e .
 ```
 
-Requires Python >= 3.9.
+Requires Python >= 3.9. (R is additionally required only to reproduce the
+two empirical case-study export scripts under `empirical_networks/` -- see
+that subfolder's README for the package list; the core `graph2nl` package
+and validation suite are pure Python.)
 
 ## Quickstart
 
@@ -138,11 +141,21 @@ python3 -m graph2nl.validation.procedural_networks \
 case studies from the paper (Section 5.2): the Occupational Well-Being
 network (Bereznowski et al., 2023) and the Personality network (25-item
 BFI). Each subfolder has the export script that builds a
-`network_for_llm.json`-schema file from source data, plus that script's
-actual verified output -- raw survey data itself is not redistributed
-here (both sources are already public elsewhere); see
+`network_for_llm.json`-schema file from source data, that script's actual
+verified output (JSON + figure), and a `sessionInfo_*.txt` capture of the
+exact R/package versions used to produce them -- raw survey data itself is
+not redistributed here (both sources are already public elsewhere); see
 `empirical_networks/README.md` for exact provenance and how to reproduce
 each one.
+
+These two export scripts are **R**, not Python -- a separate toolchain
+from the rest of this repo. `occupational_wellbeing/` additionally
+requires the source `dataset.csv` (not bundled; openly deposited by the
+original authors, see that subfolder's README for the link) since it's
+the original authors' data reused faithfully, not resampled or
+reconstructed. `personality/` needs no external download -- its source
+data is `psych::bfi`, bundled directly in the R `psych`/`psychTools`
+package.
 
 ## Package layout
 
@@ -159,8 +172,16 @@ examples/
   llm_config.example.yaml
   network_for_llm.example.json
 empirical_networks/
-  occupational_wellbeing/  # Bereznowski et al. (2023) reproduction
-  personality/              # BFI five-factor network
+  occupational_wellbeing/            # Bereznowski et al. (2023) reproduction
+    export_published_network.R        # R; requires paper's own dataset.csv (see subfolder README)
+    network_for_llm.json               # this script's verified output
+    occupational_wellbeing_network.pdf/.png
+    sessionInfo_bereznowski.txt        # pinned R/package versions
+  personality/                        # BFI five-factor network
+    export_bfi_network.R              # R; source data bundled in psych/psychTools
+    network_for_llm_bfi.json           # this script's verified output
+    bfi_personality_network.pdf
+    sessionInfo_bfi.txt                # pinned R/package versions
 ```
 
 ## Citation

@@ -1,27 +1,6 @@
 <!--
 Graph2NL interpretation prompt: full reporting-constrained protocol.
 
-The methodological cautions below draw on several sources rather than a
-single reporting standard: the sparsity caveat reflects the warning
-against treating a regularized zero edge as evidence of no
-population-level association (Epskamp, Borsboom, & Fried, 2018,
-"Estimating psychological networks and their accuracy," Behavior Research
-Methods, 50, 195-212; Burger, Isvoranu, Lunansky, Haslbeck, Epskamp,
-Hoekstra, Fried, Borsboom, & Blanken, 2023, "Reporting Standards for
-Psychological Network Analyses in Cross-Sectional Data," Psychological
-Methods, 28(4), 806-824). The centrality-relativity framing and the
-strength/expected-influence distinction reflect specific critiques of
-centrality interpretation in psychological networks (Robinaugh, Millner,
-& McNally, 2016, Journal of Abnormal Psychology, 125(6), 747-757;
-Bringmann et al., 2019, Journal of Abnormal Psychology, 128(8), 892-903;
-Dablander & Hinne, 2019, Scientific Reports, 9, 6846). The causal-language
-restriction reflects the broader methodological caution that an undirected
-cross-sectional association network does not by itself establish causal
-direction (Dablander & Hinne, 2019; Borsboom et al., 2021, "Network
-analysis of multivariate data in psychological science," Nature Reviews
-Methods Primers, 1, 58). The magnitude bands are defined solely for this
-benchmark and are not intended as universal magnitude thresholds.
-
 Scope: targets cross-sectional partial-correlation networks / Gaussian
 Graphical Models; the same template also covers hand-built and
 procedurally generated test networks via meta.method, without
@@ -155,7 +134,7 @@ absent or not applicable. Rules for this section:
 ## User prompt
 
 Here is the network to interpret, as JSON (nodes include their variable
-description, thematic community membership, and centrality; edges are all
+description, community membership, and centrality; edges are all
 nonzero partial correlations -- or exact values for a synthetic/procedural
 test network, see meta.method -- sorted by absolute magnitude):
 

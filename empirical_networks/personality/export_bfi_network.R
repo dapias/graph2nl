@@ -243,7 +243,7 @@ meta <- list(
     if (pd_needed) "The raw polychoric matrix required forcePD correction (see console log at generation time)." else "The raw polychoric matrix was already positive-definite; forcePD had no effect."
   ),
   community_detection_modularity = modularity_val,
-  caveat = paste(
+  note = paste(
     "Cross-sectional self-report data -- no causal interpretation warranted.",
     "Community labels reflect the Big Five's well-established theoretical",
     "structure, not blind data-driven detection."

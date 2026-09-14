@@ -6,7 +6,7 @@
     "n": 2436,
     "method": "Polychoric correlation (qgraph::cor_auto) + EBICglasso regularization (qgraph::EBICglasso, gamma=0.5, threshold=TRUE) -- same correlation+ regularization combination as bootnet::estimateNetwork(default= 'EBICglasso'), called directly. Community membership is the THEORETICAL five-factor structure from the item design (bfi's own documented scoring key), NOT walktrap-detected -- so the 'community_detection_modularity' field below is the modularity of a FIXED, theory-supplied partition, not a data-driven detection result (contrast with production networks elsewhere in this project, where the same field name is computed from actual walktrap detection). strength_centrality/expected_influence are derived directly from the estimated edge matrix by this export script, not sourced from any published paper. The raw polychoric matrix was already positive-definite; forcePD had no effect.",
     "community_detection_modularity": 0.3872,
-    "caveat": "Cross-sectional self-report data -- no causal interpretation warranted. Community labels reflect the Big Five's well-established theoretical structure, not blind data-driven detection."
+    "note": "Cross-sectional self-report data -- no causal interpretation warranted. Community labels reflect the Big Five's well-established theoretical structure, not blind data-driven detection."
   },
   "nodes": [
     {

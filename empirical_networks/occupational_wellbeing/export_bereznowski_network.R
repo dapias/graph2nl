@@ -261,7 +261,7 @@ network_for_llm <- list(
     ),
     community_detection_modularity = round(modularity_value, 3),
     community_detection_note = "Modularity computed here on |edge weights| for the hardcoded published partition; the paper does not report a modularity value for its spin-glass solution.",
-    caveat = "Cross-sectional data -- no causal interpretation warranted. EBIC-glasso regularization shrinks small partial correlations to exactly zero; an absent edge is not evidence the population association is zero."
+    note = "Cross-sectional data -- no causal interpretation warranted. EBIC-glasso regularization shrinks small partial correlations to exactly zero; an absent edge is not evidence the population association is zero."
   ),
   nodes = nodes,
   edges = edges

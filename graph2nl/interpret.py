@@ -273,12 +273,18 @@ def main():
     # full_protocol.md's system prompt mandates these two exact section
     # headings; other bundled templates (naive.md, scientific_minimal.md)
     # may not impose this structure, so only require it when the prompt
-    # actually declares it. Auto-detected from the system prompt itself
-    # (it states each required heading in backticks, e.g. `## Technical
-    # interpretation`) so this doesn't need updating by hand if a template
-    # adds/renames a section -- new templates just need to follow the same
-    # backtick-heading convention to opt in automatically.
-    required_headings = tuple(re.findall(r"`(##\s+[^`]+)`", system_prompt)) or None
+    # actually declares it. Auto-detected from the system prompt itself,
+    # via two conventions: a backtick-quoted mention (e.g. `## Technical
+    # interpretation`), or an actual literal "##"-level heading line within
+    # the system prompt text (since load_prompt_template already strips the
+    # "## System prompt"/"## User prompt" markers themselves, any remaining
+    # "##" line here can only be one of the output headings the prompt is
+    # telling the model to reproduce). Supporting both means this doesn't
+    # need updating by hand if a template adds/renames a section or changes
+    # which of the two conventions it uses to state the requirement.
+    backtick_style = re.findall(r"`(##\s+[^`]+)`", system_prompt)
+    literal_style = re.findall(r"^(##\s+\S.*?)\s*$", system_prompt, re.MULTILINE)
+    required_headings = tuple(dict.fromkeys(backtick_style + literal_style)) or None
 
     try:
         interpretation = call_llm(llm_cfg, system_prompt, user_prompt,

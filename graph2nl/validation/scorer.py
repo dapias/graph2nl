@@ -193,16 +193,19 @@ def _split_sections(text):
     check that specifically wants "the technical part" still has content to
     search, rather than silently searching nothing).
 
-    score_calibration uses this to score the Technical interpretation
-    section only: the plain-language section's required
-    negligible-avoiding paraphrase ("very weak") and the technical
-    section's exact band label ("negligible") would otherwise both be
-    searched in the same window, and a same-sentence collision-avoidance
-    check can't tell those two intentionally-different phrasings apart.
-    Scoping to the technical section (which the prompt explicitly requires
-    to use the standardized band words) removes that cross-section noise
-    source directly, rather than pattern-matching around it after the
-    fact."""
+     Not currently called by any score_* function. It was built to scope
+    score_calibration to the Technical interpretation section only, to
+    avoid a same-window collision between the plain-language section's
+    required negligible-avoiding paraphrase ("very weak") and the
+    technical section's exact band label ("negligible"). On real
+    reference-model data this made calibration scoring WORSE: a clean plain-language bullet for an edge often
+    rescues a messier technical-section rendering of the same edge, and
+    scoping to the technical section only throws that rescue away along
+    with the collision it was meant to fix. score_calibration instead
+    masks the specific colliding phrasings directly (see
+    INTENSIFIED_ADJACENT_TERMS) while still searching the full response.
+    Left in place in case a more targeted use is found.
+    """
     matches = list(_SECTION_HEADING_RE.finditer(text))
     if not matches:
         return text, text, text

@@ -87,7 +87,7 @@ headings, each on its own line).
 ## Validation suite
 
 ```bash
-net2narratives-validate --llm-config my_llm_config.yaml
+net2narratives-validate --llm-config my_llm_config.yaml --out-dir results_synthetic
 ```
 
 This runs the six hand-built diagnostic networks
@@ -96,10 +96,10 @@ model and scores each response with the deterministic evaluator
 (`net2narratives/validation/scorer.py`). Useful options:
 
 ```bash
-net2narratives-validate --llm-config my_llm_config.yaml --repeats 21          # repeated generations
-net2narratives-validate --llm-config my_llm_config.yaml --test-id calibration # a single test
+net2narratives-validate --llm-config my_llm_config.yaml --repeats 50 --out-dir results_synthetic    # repeated generations
+net2narratives-validate --llm-config my_llm_config.yaml --test-id calibration --out-dir results_test  # a single test
 net2narratives-validate --llm-config my_llm_config.yaml --source procedural \
-    --n-per-competency 100 --proc-seed 4242                                   # procedural networks
+    --n-per-competency 100 --proc-seed 4242 --out-dir results_procedural                           # procedural networks
 ```
 
 Each run writes the raw model output and a score file per test, plus a

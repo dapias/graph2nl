@@ -6,4 +6,5 @@ __pycache__/
 results_*/
 *.log
 *.egg-info/
-*~
+.env*
+~

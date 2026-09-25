@@ -1,0 +1,7 @@
+# llm_config_glm.yaml
+base_url: "https://chat-ai.academiccloud.de/v1"
+api_key_env: "GWDG_API_KEY"
+model: "glm-4.7"
+prompt_template: "full_protocol"
+temperature: 0.3
+max_tokens: 4000

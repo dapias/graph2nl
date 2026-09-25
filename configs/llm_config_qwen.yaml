@@ -1,0 +1,7 @@
+# llm_config_qwen.yaml
+base_url: "https://chat-ai.academiccloud.de/v1"
+api_key_env: "GWDG_API_KEY"
+model: "qwen3.5-397b-a17b"
+prompt_template: "full_protocol"
+temperature: 0.3
+max_tokens: 12000   # reasoning-trace model — needs the higher budget, per prior runs

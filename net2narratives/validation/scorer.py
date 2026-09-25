@@ -35,6 +35,10 @@ _COMPARATIVE_SAFE_PATTERN = {
     "strong": re.compile(r"strong(?!er\b|est\b)"),
 }
 
+# "less strongly" / "more weakly" compare edges; they do not assign a band
+# (same rationale as the -er/-est exclusion above).
+_COMPARATIVE_PHRASE = re.compile(r"\b(?:less|more)\s+(?:strong|weak)(?:ly)?\b")
+
 POSITIVE_TERMS = [
     r"positiv\w*",                              # positive, positively (also matches inside "net positive influence")
     r"go(es)? together", r"move together", r"co-?occur\w*", r"increases? with",
@@ -395,6 +399,7 @@ def score_calibration(text, ground_truth):
         # phrasing patterns listed there; a bare "weak"/"strong" elsewhere
         # in the window is untouched and still counted normally.
         masked = combined
+        masked = _COMPARATIVE_PHRASE.sub("[comparative]", masked)
         for (_other_band, target_band), patterns in INTENSIFIED_ADJACENT_TERMS.items():
             if target_band == band:
                 for p in patterns:

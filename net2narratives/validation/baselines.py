@@ -1,28 +1,16 @@
 #!/usr/bin/env python3
-"""
-baselines.py -- Graph2NL: baseline for the LLM interpretation layer
+"""Deterministic template baseline for network interpretation.
 
-   Deterministic template baseline (this module builds and runs it -- no
-   API access needed, so it's fully reproducible in any environment). Given only a
-   network_for_llm.json-shaped dict (the exact same input interpret.py
-   hands the LLM), mechanically renders one sentence per edge
-   ("A and B have a {band} {sign} partial correlation (r = {weight})."),
-   one sentence per community, and one sentence per node flagged as
-   high-strength/low-influence -- using the network's own numeric fields,
-   never anything derived from ground_truth (which the template has no
-   access to, exactly like the LLM). This should score near-perfect on
-   every synthetic/procedural competency BY CONSTRUCTION (it cannot
-   hallucinate an edge that isn't in the input, cannot misstate a sign or
-   band since it computes them directly from the numbers, and never uses
-   causal language) -- that's the point: it establishes the factual-
-   fidelity ceiling the LLM's richer, more readable prose is being traded
-   off against. 
+Builds an interpretation from the same network data given to the LLM,
+without using test ground truth or an API. Scoring this output checks
+whether the benchmark criteria can be met from the supplied network
+(paper, Appendix A.2).
 
 Usage:
-    python3 -m graph2nl.validation.baselines --source both --out-dir baseline_results
+    python3 -m net2narratives.validation.baselines --source both \
+        --n-per-competency 100 --seed 4242 --out-dir baseline_results
 """
 import argparse
-import datetime
 import json
 import pathlib
 
@@ -47,10 +35,7 @@ def _node_lookup(network):
 
 
 def template_interpretation(network):
-    """Pure function of the network dict alone (meta/nodes/edges) -- no
-    access to any test's ground_truth, matching exactly what an LLM
-    interpreter is given. Deterministic: same input always produces the
-    same text, byte for byte."""
+    """Return the same interpretation for the same network, using no ground truth."""
     nodes = _node_lookup(network)
     lines = []
 
@@ -60,7 +45,7 @@ def template_interpretation(network):
         f"any pair not listed below has no direct association in this network."
     )
 
-    # 1. one sentence per edge, in the order given
+    # Describe each edge.
     for e in network["edges"]:
         a, b = e["source"], e["target"]
         band = _band_for(e["weight"])
@@ -69,7 +54,7 @@ def template_interpretation(network):
             f"{a} and {b} have a {band} {sign} partial correlation (r = {e['weight']:.3f})."
         )
 
-    # 2. one sentence per community (by node["community"], skipping unassigned)
+    # Describe each assigned community.
     communities = {}
     for nid, n in nodes.items():
         c = n.get("community")
@@ -79,11 +64,7 @@ def template_interpretation(network):
         if len(members) > 1:
             lines.append(f"Community {cid} consists of: {', '.join(members)}.")
 
-    # 3. centrality: flag any node whose expected influence is small relative
-    # to its strength (i.e. positive and negative associations largely
-    # offset) -- purely numeric, computed from the node's own
-    # strength_centrality/expected_influence fields, same threshold logic a
-    # human reading a centrality table would apply.
+    # Identify nodes whose positive and negative edges largely offset.
     for nid, n in nodes.items():
         s = n.get("strength_centrality")
         ei = n.get("expected_influence")
@@ -105,10 +86,10 @@ def template_interpretation(network):
     return "\n".join(lines)
 
 
-def run_baselines(source="both", n_per_competency=10, seed=2026, out_dir="baseline_results"):
-    from graph2nl_core.validation.synthetic_networks import SYNTHETIC_NETWORKS
-    from graph2nl_core.validation.procedural_networks import generate_procedural_networks
-    from graph2nl_core.validation.scorer import score
+def run_baselines(source="both", n_per_competency=100, seed=4242, out_dir="baseline_results"):
+    from net2narratives.validation.synthetic_networks import SYNTHETIC_NETWORKS
+    from net2narratives.validation.procedural_networks import generate_procedural_networks
+    from net2narratives.validation.scorer import score
 
     tests = []
     if source in ("synthetic", "both"):
@@ -154,8 +135,8 @@ def run_baselines(source="both", n_per_competency=10, seed=2026, out_dir="baseli
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", choices=["synthetic", "procedural", "both"], default="both")
-    ap.add_argument("--n-per-competency", type=int, default=10)
-    ap.add_argument("--seed", type=int, default=2026)
+    ap.add_argument("--n-per-competency", type=int, default=100)
+    ap.add_argument("--seed", type=int, default=4242)
     ap.add_argument("--out-dir", default="baseline_results")
     args = ap.parse_args()
 

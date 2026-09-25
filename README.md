@@ -1,9 +1,9 @@
-# graph2nl
+# net2narratives
 
 Validated LLM interpretation of statistical association networks
 (partial-correlation matrices) as natural language.
 
-`graph2nl` takes an already-estimated cross-sectional network -- nodes,
+`net2narratives` takes an already-estimated cross-sectional network -- nodes,
 edges, weights, community/centrality metadata -- and produces a
 scientifically appropriate natural-language interpretation of it via an
 LLM, following a reporting-constrained protocol grounded in psychological-
@@ -21,14 +21,14 @@ causal-language avoidance.
 ## Install
 
 ```bash
-git clone https://github.com/dapias/graph2nl.git
-cd graph2nl
+git clone https://github.com/dapias/net2narratives.git
+cd net2narratives
 pip install -e .
 ```
 
 Requires Python >= 3.9. (R is additionally required only to reproduce the
 two empirical case-study export scripts under `empirical_networks/` -- see
-that subfolder's README for the package list; the core `graph2nl` package
+that subfolder's README for the package list; the core `net2narratives` package
 and validation suite are pure Python.)
 
 ## Quickstart
@@ -53,7 +53,7 @@ and validation suite are pure Python.)
    see `examples/network_for_llm.example.json`):
 
    ```bash
-   graph2nl-interpret --network examples/network_for_llm.example.json \
+   net2narratives-interpret --network examples/network_for_llm.example.json \
                        --llm-config my_llm_config.yaml
    ```
 
@@ -67,12 +67,12 @@ and validation suite are pure Python.)
    `community`/`strength_centrality`/`expected_influence`; edges with
    `source`/`target`/`weight`/`sign`; see
    `examples/network_for_llm.example.json` or
-   `graph2nl/validation/synthetic_networks.py` for further worked
+   `net2narratives/validation/synthetic_networks.py` for further worked
    examples).
 
 ## Prompt templates
 
-Three bundled prompt templates live in `graph2nl/prompts/`, in order of
+Three bundled prompt templates live in `net2narratives/prompts/`, in order of
 increasing methodological scaffolding:
 
 - `naive.md` -- minimal context, general-audience interpretation, no
@@ -92,18 +92,18 @@ the path to your own custom template (must contain `## System prompt` and
 ## Validation suite
 
 ```bash
-graph2nl-validate --llm-config my_llm_config.yaml
+net2narratives-validate --llm-config my_llm_config.yaml
 ```
 
-Runs the six hand-built diagnostic networks (`graph2nl/validation/
+Runs the six hand-built diagnostic networks (`net2narratives/validation/
 synthetic_networks.py`) against your configured model and scores each
-response with the deterministic evaluator (`graph2nl/validation/
+response with the deterministic evaluator (`net2narratives/validation/
 scorer.py`). Useful flags:
 
 ```bash
-graph2nl-validate --llm-config my_llm_config.yaml --repeats 21   # check run-to-run consistency
-graph2nl-validate --llm-config my_llm_config.yaml --test-id calibration
-graph2nl-validate --llm-config my_llm_config.yaml --source procedural  # larger procedurally generated battery
+net2narratives-validate --llm-config my_llm_config.yaml --repeats 21   # check run-to-run consistency
+net2narratives-validate --llm-config my_llm_config.yaml --test-id calibration
+net2narratives-validate --llm-config my_llm_config.yaml --source procedural  # larger procedurally generated battery
 ```
 
 ### Reproducing the procedural benchmark
@@ -116,11 +116,11 @@ networks, so it isn't checked into this repo as static data.
 To run the validation suite against the paper's exact procedural battery:
 
 ```bash
-graph2nl-validate --llm-config my_llm_config.yaml --source procedural \
+net2narratives-validate --llm-config my_llm_config.yaml --source procedural \
     --n-per-competency 15 --proc-seed 4242
 ```
 
-Note that `graph2nl-validate --source procedural` on its own uses
+Note that `net2narratives-validate --source procedural` on its own uses
 different defaults (`--proc-seed 2026`, `--n-per-competency 10` -> 60
 networks) -- a smaller, differently-seeded battery meant for a quick
 local check, not the paper's reported numbers. Always pass `--proc-seed
@@ -128,10 +128,10 @@ local check, not the paper's reported numbers. Always pass `--proc-seed
 D` of the paper.
 
 To inspect the raw network instances themselves (nodes/edges JSON,
-without calling an LLM or running `graph2nl-validate` at all):
+without calling an LLM or running `net2narratives-validate` at all):
 
 ```bash
-python3 -m graph2nl.validation.procedural_networks \
+python3 -m net2narratives.validation.procedural_networks \
     --n-per-competency 15 --seed 4242 --out procedural_battery_seed4242.json
 ```
 
@@ -160,14 +160,14 @@ package.
 ## Package layout
 
 ```
-graph2nl/
-  interpret.py            # graph2nl-interpret: single-network interpretation
+net2narratives/
+  interpret.py            # net2narratives-interpret: single-network interpretation
   prompts/                 # bundled prompt templates (see above)
   validation/
     synthetic_networks.py  # 6 hand-built diagnostic networks, one per competency
     procedural_networks.py # procedurally generated battery (structural variation)
     scorer.py               # deterministic, rule-based evaluator
-    run_validation.py       # graph2nl-validate: runs + scores the suite
+    run_validation.py       # net2narratives-validate: runs + scores the suite
 examples/
   llm_config.example.yaml
   network_for_llm.example.json

@@ -1,4 +1,4 @@
-# Example LLM config for graph2nl-interpret / graph2nl-validate.
+# Example LLM config for net2narratives-interpret / net2narratives-validate.
 #
 # Copy this file, edit as needed, and pass it via --llm-config. Any
 # OpenAI-compatible chat completions endpoint works -- change base_url and
@@ -22,7 +22,7 @@ model: "gpt-oss-120b"
 
 # Which bundled prompt template to use: "full_protocol" (default used for
 # this paper's confirmatory results), "scientific_minimal", or "naive" --
-# see graph2nl/prompts/. You can also point this at the path to your own
+# see net2narratives/prompts/. You can also point this at the path to your own
 # custom prompt template file instead of a bundled name.
 prompt_template: "full_protocol"
 

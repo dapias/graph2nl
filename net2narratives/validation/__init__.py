@@ -1,1 +1,1 @@
-"""Validation tools for graph2nl. Run tests with run_validation.py."""
+"""Validation tools for net2narratives. Run tests with run_validation.py."""

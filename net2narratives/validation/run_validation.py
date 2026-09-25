@@ -2,19 +2,19 @@
 """
 Run validation networks through an LLM and score their interpretations.
 
-Uses the graph2nl prompt and scorer, then saves each response and a summary.
+Uses the net2narratives prompt and scorer, then saves each response and a summary.
 Use --repeats to assess variation across LLM responses.
 
-Requires graph2nl and the API key named in the LLM configuration (for
+Requires net2narratives and the API key named in the LLM configuration (for
 example, GWDG_API_KEY). The key can be set in a working-directory .env file.
 
 Usage:
-    graph2nl-validate --llm-config examples/llm_config.example.yaml
-    graph2nl-validate --llm-config my_llm_config.yaml --repeats 3
-    graph2nl-validate --llm-config my_llm_config.yaml --test-id calibration
+    net2narratives-validate --llm-config examples/llm_config.example.yaml
+    net2narratives-validate --llm-config my_llm_config.yaml --repeats 3
+    net2narratives-validate --llm-config my_llm_config.yaml --test-id calibration
 
     # equivalently, without installing:
-    python3 -m graph2nl.validation.run_validation --llm-config ...
+    python3 -m net2narratives.validation.run_validation --llm-config ...
 """
 import argparse
 import datetime
@@ -25,10 +25,10 @@ import time
 import yaml
 from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
 
-from graph2nl.interpret import load_prompt_template, call_llm, resolve_prompt_template, LLMEmptyResponseError
-from graph2nl.validation.synthetic_networks import SYNTHETIC_NETWORKS
-from graph2nl.validation.procedural_networks import generate_procedural_networks
-from graph2nl.validation.scorer import score
+from net2narratives.interpret import load_prompt_template, call_llm, resolve_prompt_template, LLMEmptyResponseError
+from net2narratives.validation.synthetic_networks import SYNTHETIC_NETWORKS
+from net2narratives.validation.procedural_networks import generate_procedural_networks
+from net2narratives.validation.scorer import score
 
 # call_llm retries these errors internally. If they persist, retry once here
 # before recording an error for this repeat and continuing.

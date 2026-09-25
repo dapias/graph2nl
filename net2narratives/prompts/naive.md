@@ -1,5 +1,5 @@
 <!--
-Graph2NL interpretation prompt: naive baseline.
+Net2Narratives interpretation prompt: naive baseline.
 
 Parsed the same way as any other bundled template: on the
 "## System prompt" / "## User prompt" headings (own line, exact case).

@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "graph2nl"
+name = "net2narratives"
 version = "1.0.0"	
 description = "Validated LLM interpretation of statistical association networks (partial-correlation matrices) as natural language."
 readme = "README.md"
@@ -21,17 +21,17 @@ dependencies = [
 dev = ["pytest"]
 
 [project.scripts]
-graph2nl-interpret = "graph2nl.interpret:main"
-graph2nl-validate = "graph2nl.validation.run_validation:main"
-# graph2nl-rescore and graph2nl-analyze-failures are not yet included in
-# this release (graph2nl/validation/rescore.py and analyze_failures.py
+net2narratives-interpret = "net2narratives.interpret:main"
+net2narratives-validate = "net2narratives.validation.run_validation:main"
+# net2narratives-rescore and net2narratives-analyze-failures are not yet included in
+# this release (net2narratives/validation/rescore.py and analyze_failures.py
 # don't exist here yet) -- re-add once those modules are added.
 
 [tool.setuptools.packages.find]
-include = ["graph2nl*"]
+include = ["net2narratives*"]
 
 [tool.setuptools.package-data]
-graph2nl = ["prompts/*.md"]
+net2narratives = ["prompts/*.md"]
 
 [tool.setuptools.dynamic]
-version = {attr = "graph2nl.__version__"}
+version = {attr = "net2narratives.__version__"}

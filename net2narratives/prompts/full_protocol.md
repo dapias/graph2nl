@@ -1,5 +1,5 @@
 <!--
-Graph2NL interpretation prompt: full reporting-constrained protocol.
+Net2Narratives interpretation prompt: full reporting-constrained protocol.
 
 Scope: targets cross-sectional partial-correlation networks / Gaussian
 Graphical Models; the same template also covers hand-built and

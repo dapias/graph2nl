@@ -1,12 +1,12 @@
 # `network_for_llm.json` schema
 
-This is the input format graph2nl expects. Any upstream pipeline that
+This is the input format net2narratives expects. Any upstream pipeline that
 produces a JSON file in this shape -- regardless of domain, correlation
-method, or estimation software -- can pass it to `graph2nl-interpret`
-(or `python3 -m graph2nl.interpret`) to obtain a natural-language
+method, or estimation software -- can pass it to `net2narratives-interpret`
+(or `python3 -m net2narratives.interpret`) to obtain a natural-language
 interpretation.
 
-`graph2nl/validation/synthetic_networks.py` contains hand-built examples
+`net2narratives/validation/synthetic_networks.py` contains hand-built examples
 in this format (the validation suite runs against them); reading one or
 two is the fastest way to see the schema in practice.
 

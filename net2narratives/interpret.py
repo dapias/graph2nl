@@ -6,9 +6,9 @@ configuration. The network may come from any upstream pipeline that follows
 the schema. Responses are requested from an OpenAI-compatible endpoint.
 
 Usage:
-    graph2nl-interpret --network network_for_llm.json --llm-config llm_config.yaml
-    graph2nl-interpret --network network_for_llm.json --llm-config llm_config.yaml --out interpretation.md
-    python3 -m graph2nl.interpret --network ... --llm-config ...
+    net2narratives-interpret --network network_for_llm.json --llm-config llm_config.yaml
+    net2narratives-interpret --network network_for_llm.json --llm-config llm_config.yaml --out interpretation.md
+    python3 -m net2narratives.interpret --network ... --llm-config ...
 """
 import argparse
 import datetime

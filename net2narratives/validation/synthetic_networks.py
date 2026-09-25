@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Six hand-built networks for graph2nl validation, one per competency.
+Six hand-built networks for net2narratives validation, one per competency.
 
 Abstract variables and simple structures make the ground truth easy to inspect
 without relying on domain knowledge.
@@ -15,16 +15,16 @@ Edge values are set directly rather than estimated. Only each case's network
 is sent to the LLM; its description and ground truth remain scorer-side.
 
 Usage:
-    from graph2nl.validation.synthetic_networks import get_network
+    from net2narratives.validation.synthetic_networks import get_network
     test_case = get_network("calibration")
 
-    from graph2nl.validation.synthetic_networks import SYNTHETIC_NETWORKS
+    from net2narratives.validation.synthetic_networks import SYNTHETIC_NETWORKS
     for test_case in SYNTHETIC_NETWORKS:
         ...
 
 The full validation suite is normally run through:
 
-    python3 -m graph2nl.validation.run_validation --llm-config ...
+    python3 -m net2narratives.validation.run_validation --llm-config ...
 
 Running this file directly prints a preview without calling the LLM or scorer.
 """

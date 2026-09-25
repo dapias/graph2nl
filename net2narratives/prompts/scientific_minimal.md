@@ -1,5 +1,5 @@
 <!--
-Graph2NL interpretation prompt: scientific-minimal baseline.
+Net2Narratives interpretation prompt: scientific-minimal baseline.
 
 An intermediate condition between naive.md (zero guidance) and
 full_protocol.md (the full reporting-constrained protocol). 

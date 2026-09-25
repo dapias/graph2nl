@@ -1,30 +1,13 @@
 #!/usr/bin/env python3
-"""
-interpret.py -- graph2nl-core: LLM interpretation of a partial-correlation
-network, via an OpenAI-compatible endpoint.
+"""Generate a natural-language interpretation of a network through an LLM.
 
-Consumes a network description in the schema documented in
-schema/network_for_llm.md (nodes/edges/meta -- see that file, or
-graph2nl/validation/synthetic_networks.py for hand-built examples) and
-an LLM config (small YAML: base_url, api_key_env, model, prompt_template,
-etc. -- see examples/llm_config.example.yaml), and writes a natural-language
-interpretation.
-
-This is intentionally dataset-agnostic: the network can come from any
-correlation method, any domain, any upstream pipeline -- as long as it
-matches the schema. Tested against GWDG's Academic Cloud AI service
-(https://chat-ai.academiccloud.de/v1), and works with any other
-OpenAI-compatible provider by changing llm_config.base_url / llm_config.model.
-
-Requires:
-    pip install graph2nl        # installs the `graph2nl-interpret` CLI
-    export GWDG_API_KEY=...          # or whatever env var llm_config.api_key_env names
+Reads a network in the schema/network_for_llm.md format and a YAML LLM
+configuration. The network may come from any upstream pipeline that follows
+the schema. Responses are requested from an OpenAI-compatible endpoint.
 
 Usage:
     graph2nl-interpret --network network_for_llm.json --llm-config llm_config.yaml
     graph2nl-interpret --network network_for_llm.json --llm-config llm_config.yaml --out interpretation.md
-
-    # equivalently, without installing:
     python3 -m graph2nl.interpret --network ... --llm-config ...
 """
 import argparse
@@ -40,10 +23,7 @@ import yaml
 
 try:
     from dotenv import load_dotenv
-    # No explicit path: python-dotenv's default search walks up from the
-    # current working directory, which is the right behavior here since
-    # this package is typically invoked from an upstream pipeline's own
-    # directory (e.g. graph2nl-ewcs), not from inside this package.
+    # Load an available .env file before reading the configured API key.
     load_dotenv()
 except ImportError:
     pass  # python-dotenv not installed: fall back to whatever's already in the environment
@@ -52,11 +32,7 @@ BUNDLED_PROMPTS_DIR = pathlib.Path(__file__).resolve().parent / "prompts"
 
 
 def resolve_prompt_template(spec):
-    """Resolve a prompt_template value from an llm_config to an actual file
-    path. Accepts either a path (absolute, or relative to the current
-    working directory) to a custom prompt template, or the bare name of one
-    of this package's bundled templates (e.g. "full_protocol", with or
-    without the .md extension) under graph2nl_core/prompts/."""
+    """Find a custom path or a bundled prompt name, with or without .md."""
     p = pathlib.Path(spec)
     if p.exists():
         return p
@@ -68,13 +44,7 @@ def resolve_prompt_template(spec):
 
 
 def load_prompt_template(path):
-    """Split a prompt template file into (system_prompt, user_prompt).
-
-    Matches '## System prompt' / '## User prompt' only when they appear as a
-    heading on their own line (start of line, optional trailing whitespace),
-    so mentioning those words elsewhere in the file (e.g. in a comment
-    explaining the format) can't be mistaken for the real section marker.
-    """
+    """Read the system and user sections marked by standalone headings."""
     with open(path) as f:
         text = f.read()
 
@@ -92,70 +62,17 @@ def load_prompt_template(path):
 
 
 class LLMEmptyResponseError(RuntimeError):
-    """Raised when the configured endpoint returns a response that isn't
-    usable as a complete interpretation. Covers three distinct observed
-    failure modes, all surfaced through this one exception so existing
-    callers (interpret.py's main(), run_validation.py's retry-and-continue
-    wrapper) don't need separate except clauses for each:
-
-    1. message.content is None -- some OpenAI-compatible providers, in
-       particular reasoning models, return this if the model only emitted
-       a reasoning/thinking segment and no final answer before hitting
-       max_tokens, or if a provider-side safety filter suppressed the
-       reply.
-    2. finish_reason == 'length' -- the response is non-empty but was cut
-       off mid-generation. For a reasoning model, max_tokens covers the
-       hidden reasoning trace as well as the visible answer, so this can
-       happen even when the visible text alone is far short of the
-       configured max_tokens; raising max_tokens is the usual fix.
-    3. finish_reason == 'stop' but the response is missing a required
-       section heading -- observed with full_protocol.md's two-section
-       format: the model produces a complete, well-formed Plain-language
-       summary and then stops on its own (a genuine stop token, not a
-       length cutoff) without ever starting the Technical interpretation
-       section. This looks like call-to-call stochastic behavior rather
-       than a systematic prompt problem, since most calls with the same
-       config succeed -- so it's handled the same way as a transient
-       provider error: retry with backoff.
-
-    Without this check, a case-1 response fails loudly elsewhere (e.g.
-    validation/scorer.py's _normalize, which expects a string and would
-    otherwise raise an opaque 'NoneType has no attribute replace'), but
-    cases 2 and 3 previously failed silently: the partial or incomplete
-    text was written to disk as if it were a normal, complete response."""
+    """Raised after retries for empty, truncated, or incomplete responses."""
 
 
 def call_llm(llm_cfg, system_prompt, user_prompt, max_retries=5, base_delay=15,
              required_headings=None):
-    """Call the configured OpenAI-compatible endpoint and return the raw
-    text response. Shared by this module's normal run and by
-    validation/run_validation.py's synthetic-network test harness, so both
-    paths exercise the exact same request-construction code
+    """Return a usable response from the configured endpoint.
 
-    Retries with exponential backoff (base_delay, doubling, capped at 300s)
-    on BOTH transient provider errors (rate limiting, connection drops,
-    timeouts, 5xx responses) AND unusable-but-not-erroring responses (see
-    LLMEmptyResponseError) -- both are typically resolved by trying again
-    rather than indicating a bad request, so they share one retry loop.
-    GWDG's Academic Cloud AI service in particular rate-limits (429 'API
-    rate limit exceeded') under the kind of tight-loop repeated calling
-    run_validation.py's --repeats does, so this retry logic lives here, at
-    the single shared call site, rather than in each caller -- callers only
-    need to catch LLMEmptyResponseError for the case where every retry
-    was exhausted.
-
-    required_headings: optional tuple of heading strings (e.g.
-    ("## Plain-language summary", "## Technical interpretation")) that
-    must each appear on their own line in the response. Pass this when the
-    prompt template's system prompt mandates specific output sections --
-    full_protocol.md does, naive.md/scientific_minimal.md may not, so this
-    is opt-in per call rather than hardcoded here. Leave as None to skip
-    this check.
-
-    Raises LLMEmptyResponseError if no attempt produces a usable response
-    within max_retries. Re-raises the underlying openai exception if a
-    transient error specifically (not an unusable-response case) persists
-    past max_retries."""
+    Retry transient provider errors and unusable responses with exponential
+    backoff. If supplied, required_headings must each occupy a complete line.
+    Raise LLMEmptyResponseError after unusable responses exhaust retries.
+    """
     try:
         from openai import (
             OpenAI,
@@ -270,18 +187,8 @@ def main():
     system_prompt, user_template = load_prompt_template(prompt_path)
     user_prompt = user_template.replace("{{network_json}}", network_json)
 
-    # full_protocol.md's system prompt mandates these two exact section
-    # headings; other bundled templates (naive.md, scientific_minimal.md)
-    # may not impose this structure, so only require it when the prompt
-    # actually declares it. Auto-detected from the system prompt itself,
-    # via two conventions: a backtick-quoted mention (e.g. `## Technical
-    # interpretation`), or an actual literal "##"-level heading line within
-    # the system prompt text (since load_prompt_template already strips the
-    # "## System prompt"/"## User prompt" markers themselves, any remaining
-    # "##" line here can only be one of the output headings the prompt is
-    # telling the model to reproduce). Supporting both means this doesn't
-    # need updating by hand if a template adds/renames a section or changes
-    # which of the two conventions it uses to state the requirement.
+    # Require only headings named in the system prompt, whether quoted in
+    # backticks or written as literal Markdown headings.
     backtick_style = re.findall(r"`(##\s+[^`]+)`", system_prompt)
     literal_style = re.findall(r"^(##\s+\S.*?)\s*$", system_prompt, re.MULTILINE)
     required_headings = tuple(dict.fromkeys(backtick_style + literal_style)) or None

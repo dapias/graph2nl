@@ -182,6 +182,9 @@ def main():
     network_path = pathlib.Path(args.network)
     with open(network_path) as f:
         network_json = f.read()
+        # The prompt tells the model that edges are sorted by absolute magnitude.
+    network["edges"] = sorted(network.get("edges", []), key=lambda e: -abs(e["weight"]))
+    network_json = json.dumps(network, indent=2)
 
     prompt_path = resolve_prompt_template(llm_cfg["prompt_template"])
     system_prompt, user_template = load_prompt_template(prompt_path)

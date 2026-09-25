@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """
-synthetic_networks.py -- Hand-built diagnostic networks for Graph2NL
-validation.
+Six hand-built networks for graph2nl validation, one per competency.
 
-This module defines six small synthetic networks, one for each evaluation
-competency. The networks use abstract variable descriptions and simple
-structures so that the target ground truth is easy to inspect and does not
-depend on real-world domain knowledge.
+Abstract variables and simple structures make the ground truth easy to inspect
+without relying on domain knowledge.
 
 Each test case contains:
   - id and competency identifiers
@@ -14,16 +11,11 @@ Each test case contains:
   - a network dictionary matching the network_for_llm.json schema
   - structured ground truth used by scorer.py
 
-The networks are constructed directly rather than estimated from data, so
-their edge values are exact by construction.
-
-
-Only the network itself is sent to the LLM. Evaluation metadata such as the
-test id, competency name, description, and ground truth remain scorer-side
-and are not included in the model input.
+Edge values are set directly rather than estimated. Only each case's network
+is sent to the LLM; its description and ground truth remain scorer-side.
 
 Usage:
-    from graph2nl_core.validation.synthetic_networks import get_network
+    from graph2nl.validation.synthetic_networks import get_network
     test_case = get_network("calibration")
 
     from graph2nl.validation.synthetic_networks import SYNTHETIC_NETWORKS
@@ -34,8 +26,7 @@ The full validation suite is normally run through:
 
     python3 -m graph2nl.validation.run_validation --llm-config ...
 
-Running this file directly only prints a short preview of the available
-test cases. It does not call an LLM or perform scoring.
+Running this file directly prints a preview without calling the LLM or scorer.
 """
 
 from collections import defaultdict
@@ -44,8 +35,7 @@ import numpy as np
 
 
 def _min_eig_partial_corr(node_ids, edges):
-    """Minimum eigenvalue of the matrix with 1s on the diagonal and
-    -weight off-diagonal (0 for pairs with no edge).."""
+    """Minimum eigenvalue of the implied precision matrix (diagonal 1)."""
     idx = {nid: i for i, nid in enumerate(node_ids)}
     n = len(node_ids)
     p = np.eye(n)
@@ -69,9 +59,7 @@ def _assert_valid_partial_corr_network(node_ids, edges):
 
 
 def _build_network(node_defs, edges, note_extra="", include_causal_instruction=True):
-    """node_defs: list of (id, description, community). edges: list of
-    (source, target, weight).
-    """
+    """Build a network from node and weighted-edge tuples."""
     _assert_valid_partial_corr_network([nid for nid, _, _ in node_defs], edges)
 
     strength = defaultdict(float)
@@ -138,7 +126,7 @@ def _abstract(letter, note=""):
 
 SYNTHETIC_NETWORKS = []
 
-# --- 1. Calibration: one edge in each of the 4 defined effect-size bands ---
+# 1. Calibration: one edge in each magnitude band.
 SYNTHETIC_NETWORKS.append({
     "id": "calibration",
     "competency": "magnitude_label_consistency",
@@ -164,7 +152,7 @@ SYNTHETIC_NETWORKS.append({
     },
 })
 
-# --- 2. Sign/direction: equal-magnitude positive vs negative edge ---
+# 2. Sign: equal-magnitude positive and negative edges.
 SYNTHETIC_NETWORKS.append({
     "id": "sign_direction",
     "competency": "sign_direction",
@@ -186,7 +174,7 @@ SYNTHETIC_NETWORKS.append({
     },
 })
 
-# --- 3. Hallucination resistance: only one real edge, four zero pairs ---
+# 3. Hallucination resistance: one edge and five absent pairs.
 SYNTHETIC_NETWORKS.append({
     "id": "hallucination",
     "competency": "unsupported_association_avoidance",
@@ -194,7 +182,7 @@ SYNTHETIC_NETWORKS.append({
         "Only J-K (0.35) is a real edge among 4 nodes; J-L, J-M, K-L, K-M, L-M are all "
         "genuinely absent (zero, and NOT included in the edges list, matching how the real "
         "pipeline only exports nonzero edges). Tests whether the LLM invents an association "
-        "for pairs it has literally no data on, especially L and M which have no edges at all."
+        "for absent pairs, especially L and M which have no edges at all."
     ),
     "network": _build_network(
         [("synJ", _abstract("synJ"), 1), ("synK", _abstract("synK"), 1),
@@ -205,17 +193,13 @@ SYNTHETIC_NETWORKS.append({
         "type": "hallucination",
         "real_edge": {"pair": ("synJ", "synK"), "weight": 0.35},
         "must_not_claim_association_between": [("synJ", "synL"), ("synJ", "synM"), ("synK", "synL"), ("synK", "synM"), ("synL", "synM")],
-        # node -> community, matching the "community" field each node carries in "network"
-        # above (and the numbering the LLM sees in network_for_llm.json, so it reliably
-        # echoes "Community 1"/"Community 2" using these same numbers). Lets score_hallucination
-        # recognize a general cross-community denial ("No edges connect Community 1 to
-        # Community 2") as covering every cross-community pair, even when that sentence
-        # never repeats the individual node names -- see scorer.py's _community_label_denial.
+        # Match the network's community labels so the scorer can recognize
+        # group-level denials of cross-community edges.
         "communities": {1: ["synJ", "synK"], 2: ["synL", "synM"]},
     },
 })
 
-# --- 4. Community/grounding narration: two clean blocks + one weak bridge ---
+# 4. Community structure: two blocks and one weak bridge.
 SYNTHETIC_NETWORKS.append({
     "id": "community_grounding",
     "competency": "community_grounding",
@@ -240,7 +224,7 @@ SYNTHETIC_NETWORKS.append({
     },
 })
 
-# --- 5. Centrality nuance: high strength / near-zero expected influence ---
+# 5. Centrality: high strength and zero expected influence.
 SYNTHETIC_NETWORKS.append({
     "id": "centrality_nuance",
     "competency": "centrality_nuance",
@@ -264,7 +248,7 @@ SYNTHETIC_NETWORKS.append({
     },
 })
 
-# --- 6. Causal-language avoidance: one very strong edge ---
+# 6. Causal language: one strong association.
 SYNTHETIC_NETWORKS.append({
     "id": "causal_avoidance",
     "competency": "causal_language_avoidance",

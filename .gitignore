@@ -8,3 +8,6 @@ results_*/
 *.egg-info/
 .env*
 ~
+.RData
+.Rhistory
+.Rproj.user/

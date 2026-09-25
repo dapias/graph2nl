@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """
-scorer.py -- Graph2NL: automated scoring of an LLM interpretation against a
-synthetic network's known ground truth (see synthetic_networks.py).
+Score LLM interpretations against known synthetic or procedural ground truth.
 
-This is a first-pass, transparent, keyword/regex-based scorer -- not an
-LLM-as-judge. That's a deliberate choice: every check here is inspectable
-and reproducible without spending further API budget or introducing a
-second model's own biases. It will have false positives/negatives on
-unusual phrasing (see the caveats in each function's docstring).
+Checks use keywords and regular expressions. They are reproducible, but
+unusual phrasing may cause false positives or false negatives.
 
 Each score_* function takes the LLM's raw text output and the test's
 ground_truth dict, and returns:
@@ -21,53 +17,19 @@ CALIBRATION_TERMS = {
     "moderate": ["moderate"],
     "strong": ["strong"],
 }
-# ordered weakest -> strongest, for checking a band's term doesn't appear where a *different* band applies
+# Magnitude bands in ascending order.
 BAND_ORDER = ["negligible", "weak", "moderate", "strong"]
 
-# Some band words are commonly used as bare magnitude INTENSIFIERS for the
-# adjacent weaker band, not as a standalone claim of their own formal band --
-# most commonly "very weak" as a plain-language paraphrase for "negligible"
-# (the prompt's plain-language section is instructed to avoid the word
-# "negligible" itself, so the model has to improvise a lay equivalent), and
-# "moderately strong"/"fairly strong" near the moderate/strong boundary.
-# Found via real model output on a gpt-oss-120b run: of the calibration
-# competency's failing repeats, the overwhelming majority (12 of 13 sampled)
-# were this exact pattern -- the model correctly stated
-# "Negligible (< 0.05)" in the technical table AND separately described the
-# same edge as "very weak" in the required jargon-free plain-language
-# section, and CALIBRATION_TERMS's literal "weak" substring match then
-# flagged bands=['negligible','weak'] as AMBIGUOUS (0.5 credit) even though
-# there's no actual disagreement -- both phrasings describe the same
-# correct answer. These intensified phrasings are masked out ONLY when
-# checking the edge whose true band is the one they're intensifying -- a
-# bare, un-intensified "weak" (or "strong") elsewhere still counts
-# normally, so a genuinely wrong or ambiguous claim is still caught (see
-# score_calibration's use of this below).
+# In plain language, "very weak" can describe a negligible edge and
+# "moderately strong" a moderate edge. Mask these phrases only for the
+# corresponding true band; bare band words still count.
 INTENSIFIED_ADJACENT_TERMS = {
     ("weak", "negligible"): [r"very\s+weak", r"extremely\s+weak", r"quite\s+weak", r"barely\s+weak"],
     ("strong", "moderate"): [r"moderately\s+strong", r"fairly\s+strong"],
 }
 
-# "weak"/"strong" have real English comparative/superlative forms
-# ("weaker"/"weakest", "stronger"/"strongest") that a model legitimately uses
-# to RANK edges relative to each other ("the next strongest link is..."),
-# not to assert that THIS specific edge falls in the strong/weak band.
-# CALIBRATION_TERMS's bare substring match doesn't distinguish these --
-# "strong" is a substring of "strongest" -- so a sentence ranking a
-# *different, correctly-labeled* edge as the network's strongest one bled a
-# spurious "strong" into every OTHER edge's window that happened to share a
-# sentence-adjacency with it. Found via real model output (calibration
-# rep7, gpt-oss-120b): "...The strongest conditional association
-# is between synA and synE... The next strongest link is synA-synD (weight
-# = 0.22), a *moderate* (0.15-0.30) association." explicitly and correctly
-# calls synA-synD "moderate" -- but the literal "strong" inside "next
-# strongEST link" also matched, producing bands=['moderate','strong'] and an
-# AMBIGUOUS/0.5 result for an edge the model got exactly right. Matched via
-# regex instead of bare substring for just these two terms so the
-# comparative/superlative suffixes don't count as a same-edge band claim;
-# "moderately"/"strongly" (the adverb -ly forms, used correctly elsewhere in
-# real output) are untouched -- only "-er"/"-est" are excluded. "moderate"
-# has no English comparative/superlative form, so it's unaffected.
+# Comparative forms such as "strongest" rank edges; they do not assign
+# the formal "strong" band to every edge in the same sentence.
 _COMPARATIVE_SAFE_PATTERN = {
     "weak": re.compile(r"weak(?!er\b|est\b)"),
     "strong": re.compile(r"strong(?!er\b|est\b)"),
@@ -86,11 +48,7 @@ NEGATIVE_TERMS = [
     r"\bhigher\b[^.!?]{0,120}\blower\b",        # "a higher X ... lower Y"
     r"\blower\b[^.!?]{0,120}\bhigher\b",
 ]
-# NOTE: these are regexes (matched via re.search), not literal phrases -- caught a real false
-# negative where a genuinely correct interpretation ("higher scores on synF also tend to give
-# higher scores on synG" / "a higher score on synF is linked to a lower score on synH") scored
-# 0.00 because the old lists only recognized explicit words like "positively"/"negative
-# association", never seen in that (correct) response.
+# Regexes also recognize directional descriptions such as "higher X, lower Y".
 
 CAUSAL_TERMS_DEFAULT = ["causes", "cause of", "leads to", "leading to", "drives", "driving",
                          "results in", "resulting in", "because of", "due to", "brings about"]
@@ -99,75 +57,30 @@ RELATION_TERMS = [
     r"associat\w*", r"correlat\w*", r"\blink\w*", r"\brelat\w*", r"\bconnect\w*",
     r"tend(s|ed)? to", r"move together", r"go(es)? together", r"co-?occur\w*", r"\btie[sd]?\b",
 ]
-# used by score_hallucination to tell "this sentence just names both nodes" (e.g. an overview
-# listing every variable in the network) apart from "this sentence actually asserts a
-# relationship between them" -- only the latter is a real hallucination candidate.
+# Distinguish a relationship claim from an overview that merely names nodes.
 
 NEGATION_CUES = [r"\bnot\b", r"n't\b", r"\bno evidence\b", r"\bdoes not mean\b", r"\bdoesn't mean\b",
                   r"\bcannot\b", r"\bcan't\b", r"\bisn't evidence\b", r"\bis not evidence\b", r"\brather than\b"]
-# regexes (matched with re.search, word-boundary-aware), not literal substrings -- the old
-# literal "not " check missed markdown-emphasized negations like "does **not** tell us that ...
-# causes ..." (no space directly after "not", since "**" follows it instead), which flagged a
-# correctly-hedged disclaimer as a causal-language violation.
+# Regexes recognize negation even around Markdown emphasis ("**not**").
 
-# Regex patterns (not literal phrases) so word order/intervening words don't defeat the
-# match -- e.g. "showed any notable association" following a "No other pairs ..." clause
-# should count as denial even though "no notable association" isn't a contiguous substring.
+# Allow words between denial cues and relationship terms.
 DENIAL_PATTERNS = [
     r'\bno\b[^.]{0,130}\b(association|relationship|link\w*|correlat\w*|connect\w*)\b',
     r'\b(not|n[o\']t)\b[^.]{0,40}\b(associat\w*|relat\w*|link\w*|correlat\w*|connect\w*)\b',
     r'\bunrelated\b',
-    # "no"/"not" both trigger here, with a gap (not a fixed adjacent phrase) -- a real
-    # denial read "do **not** show any clear tendency to move together with any of the
-    # other items", which the old no-only, no-gap "no (clear|notable|noticeable)?
-    # tendency/pattern/connection" phrasing missed entirely (wrong trigger word AND no
-    # room for "show any" in between), leaving the sentence unrecognized as a denial.
+    # Match "no" or "not" before a later tendency or connection term.
     r'\b(?:no|not)\b[^.]{0,40}\b(tendency|pattern|connection|link\w*)\b',
-    # standalone, no "no"/"not" prefix needed -- like 'unrelated' above, "isolated" already
-    # IS the denial ("synL and synM appear isolated" means "not connected to anything").
-    # A real sentence used this word for exactly that meaning right next to "connected"
-    # (a RELATION_TERMS word) describing a DIFFERENT pair in the same breath -- without
-    # this pattern, "isolated" wasn't recognized as denial language at all, so the
-    # "connected" mention alone got the sentence flagged as a fabricated-association
-    # candidate for every pair spanning the isolated nodes.
+    # "Isolated" itself denies a connection.
     r'\bisolat\w*\b',
-    # Found via real output while building score_community's false-cross-
-    # community-claim check: "All other possible pairs (e.g., Alpha 2 with Beta 3) have
-    # exactly zero association in this construction" and "the lack of a link between...
-    # Alpha 2 and Beta 3" are both explicit, unambiguous denials -- as clear as "no
-    # association" -- but neither "zero" nor "lack" triggered any existing pattern (all
-    # of which need a literal "no"/"not"). Both are common, natural ways to state a
-    # true-zero synthetic/procedural edge, distinct from an estimated network's "shrunk
-    # to zero" caveat language, so they're just as likely to recur.
+    # "Zero association" and "lack of a link" also deny an edge.
     r'\bzero\b[^.]{0,60}\b(association|relationship|link\w*|correlat\w*|connect\w*)\b',
     r'\black(?:s|ing)?\s+(?:of\s+)?(?:a\s+|an\s+)?(association|relationship|link\w*|correlat\w*|connect\w*)\b',
 ]
-# word stems (link\w*, associat\w*, ...) not exact word forms -- "no noticeable **link**"
-# (bare noun) was missed by a pattern that only matched "linked"; widened the char gap
-# (25 -> 40) since real denial sentences often have more words between "not" and the noun
-# than the original gap assumed. The first pattern used a bare "correlation" (singular,
-# unstemmed) until a real false positive showed why that's wrong: "No partial
-# **correlations** connect community 1 (synJ, synK) with community 2 (synL, synM)" is an
-# explicit, unambiguous denial, but \bcorrelation\b doesn't match "correlations" (the
-# trailing "s" means there's no word boundary right after "correlation"), so this sentence
-# fell through to being scored as a relational hit (it also matches RELATION_TERMS via
-# "connect"). Stemmed to correlat\w* (and added connect\w*, for the same "no ... connect(s)
-# ..." phrasing) to fix it.
+# Word stems cover forms such as "link", "linked", and "correlations".
 
 
 def _normalize(text):
-    """Normalize line endings and collapse runs of horizontal whitespace
-    (spaces/tabs) to a single space -- but deliberately do NOT collapse
-    newlines away. _sentences() below uses newlines as hard segment
-    boundaries: a markdown table row has no periods at all (rows are
-    separated only by newlines), so flattening all whitespace -- including
-    newlines -- to single spaces would let an entire summary table merge
-    into one undivided blob, with every edge's row ending up in the same
-    "sentence," so every edge's query would match every OTHER edge's band
-    word too. This matters concretely: a calibration test that scores an
-    identical value on every repeat is more likely to mean the scorer is
-    reading a merged table for all edges at once than that the model made
-    the same mistake on every repeat."""
+    """Normalize whitespace while preserving newlines between table rows."""
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     return re.sub(r'[ \t]+', ' ', text)
 
@@ -177,34 +90,9 @@ _SECTION_HEADING_RE = re.compile(
 
 
 def _split_sections(text):
-    """Split model output into (plain_text, technical_text, whole_text)
-    using the exact '## Plain-language summary' / '## Technical
-    interpretation' headings full_protocol.md instructs the model to
-    produce, on their own line, exact case (matching how that prompt's own
-    docstring says downstream parsing splits this).
+    """Split exact protocol headings, falling back to full text if absent.
 
-    Deliberately NOT a hard requirement -- this scorer also grades the
-    naive/scientific_minimal prompt conditions, neither of which asks for
-    this two-section structure at all, and graph2nl-core's validation
-    harness must stay usable for both. When neither heading is found, all
-    three return values are just the whole text -- a naive-prompt response
-    is scored against its whole text directly. When only one heading is
-    found, the missing section also falls back to the whole text (so a
-    check that specifically wants "the technical part" still has content to
-    search, rather than silently searching nothing).
-
-     Not currently called by any score_* function. It was built to scope
-    score_calibration to the Technical interpretation section only, to
-    avoid a same-window collision between the plain-language section's
-    required negligible-avoiding paraphrase ("very weak") and the
-    technical section's exact band label ("negligible"). On real
-    reference-model data this made calibration scoring WORSE: a clean plain-language bullet for an edge often
-    rescues a messier technical-section rendering of the same edge, and
-    scoping to the technical section only throws that rescue away along
-    with the collision it was meant to fix. score_calibration instead
-    masks the specific colliding phrasings directly (see
-    INTENSIFIED_ADJACENT_TERMS) while still searching the full response.
-    Left in place in case a more targeted use is found.
+    Currently unused by the scorers, which check the entire response.
     """
     matches = list(_SECTION_HEADING_RE.finditer(text))
     if not matches:
@@ -225,22 +113,7 @@ _STRUCTURAL_LINE = re.compile(r'^(#+\s|[-*•]\s|\d+[.)]\s|\|)')
 
 
 def _join_soft_wraps(text):
-    """Merge line breaks that are just word-wrap (mid-sentence, no markdown
-    structure involved) back into their previous line, while KEEPING line
-    breaks that separate real markdown structure -- bullets, table rows,
-    headings, numbered items, paragraph breaks -- as hard boundaries.
-
-    A line only starts fresh (isn't merged into the previous one) if the
-    previous line already looks finished (ends in .!?: or a table '|'), or
-    the new line itself opens a new structural element. Two real bugs this
-    specifically fixes: (1) treating every '\\n' as a hard boundary split a
-    single sentence in half wherever its source text happened to be
-    word-wrapped -- both this file's own hand-wrapped triple-quoted test
-    strings and long prose paragraphs in real LLM output do this; (2) NOT
-    doing this at all (the version before this one) let an entire markdown
-    table collapse into one blob (see _normalize's docstring) -- tables
-    stay separated here because each row ends with '|', which counts as
-    "already finished"."""
+    """Join word-wrapped prose while preserving Markdown structure."""
     lines = text.split('\n')
     out = []
     for line in lines:
@@ -260,14 +133,7 @@ def _join_soft_wraps(text):
 
 
 def _sentences(text):
-    """Split into fine-grained segments. First reflows soft (word-wrap)
-    line breaks back into their sentence via _join_soft_wraps, so only
-    real markdown structure remains as line breaks; splits on those; then
-    further splits each resulting line on sentence-ending punctuation, for
-    lines/paragraphs containing more than one actual sentence. Not
-    linguistically perfect, but good enough to stop unrelated
-    rows/bullets/sentences from bleeding into each other's matching
-    windows, which a fixed character radius does not guarantee."""
+    """Split prose into sentences and Markdown into separate segments."""
     segments = []
     for line in _join_soft_wraps(text).split('\n'):
         line = line.strip()
@@ -282,33 +148,21 @@ _TOKEN_RE_CACHE = {}
 
 
 def _token_re(token):
-    """Regex matching a synthetic node ID either exactly ('synF', 'Alpha1')
-    OR with one optional space inserted right before its final character
-    ('syn F', 'Alpha 1'). A real, recurring quirk of this model's output
-    (seen independently in three different tests: 'syn F' instead of
-    'synF' in a sign_direction response, 'synP' entirely unmatched in a
-    centrality_nuance response, and every Alpha/Beta node unmatched in
-    half of one run's community_grounding responses) -- not three
-    unrelated bugs, one formatting habit the scorer needs to tolerate."""
+    """Match a whole node ID, allowing a space before its final character."""
     if token not in _TOKEN_RE_CACHE:
-        pattern = re.escape(token) if len(token) < 2 else re.escape(token[:-1]) + r'\s?' + re.escape(token[-1])
+        core = re.escape(token) if len(token) < 2 else re.escape(token[:-1]) + r'\s?' + re.escape(token[-1])
+        pattern = r'(?<!\w)' + core + r'(?!\w)'
         _TOKEN_RE_CACHE[token] = re.compile(pattern)
     return _TOKEN_RE_CACHE[token]
 
 
 def _token_in(token, text):
-    """Whether `token` (allowing the one-optional-space variant -- see
-    _token_re) appears anywhere in `text`. Use this instead of Python's
-    `in` operator for every node-ID membership check in this file."""
+    """Whether a whole node ID appears in text."""
     return _token_re(token).search(text) is not None
 
 
 def _mentions(text, token):
-    """All character spans where `token` appears (matching the
-    one-optional-space variant too -- see _token_re). Synthetic node IDs
-    are deliberately distinctive tokens (e.g. 'synA', 'Alpha1') chosen so
-    substring-style search is reliable -- no word-boundary tricks needed,
-    unlike with bare single letters."""
+    """Positions of whole node IDs, including their optional-space form."""
     return [m.start() for m in _token_re(token).finditer(text)]
 
 
@@ -352,41 +206,10 @@ def _other_nodes_in(s, a, b, all_nodes):
     return count
 
 
-# Signals a new enumerated list item beginning -- either 'and a/an/the' (the
-# final item in a list: "...with B (0.09) AND A negligible one with C") or a
-# comma directly followed by an article ("X, A weak one with D, and a
-# negligible one with E" -- the Oxford-comma-style middle items). Deliberately
-# does NOT match a bare 'and NAME' or ', NAME' with no article -- those are a
-# genuine coordinated pair of node names sharing one clause ("Node A and
-# Node D are strongly linked"; "Community 1 consists of Alpha1, Alpha2, and
-# Alpha3"), which must stay UNSPLIT for both _prefer_clean_window_text
-# below and any other, unrelated use of node-name coordination elsewhere in
-# this file (e.g. community membership lists). See
-# _prefer_clean_window_text's docstring for the real failure mode this
-# fixes and why it is scoped only to the prefer_clean path.
+# Split article-led list items without splitting coordinated node names.
 _LIST_ITEM_BOUNDARY_RE = re.compile(r'(?:,|\band)\s+(?:a|an|the)\b', re.IGNORECASE)
 
-# A segment that gestures at OTHER, unnamed items/nodes without literally
-# naming them ("weaker or negligible links to the REMAINING ITEMS") is not
-# a self-contained list item, even though it names no known node token for
-# _other_nodes_in to catch. Found via real gpt-oss-120b output (calibration
-# repeat 6): a concluding recap sentence ("Overall, the synthetic network
-# demonstrates a clear hub (synA) with a strong link to synE, a moderate
-# link to synD, and weaker or negligible links to the remaining items...")
-# correctly had its synE mention excluded by the list-item boundary logic
-# above, but the boundary regex does not fire before "and weaker or
-# negligible" (no article follows "and" there), so the trailing "...and
-# weaker or negligible links to the remaining items..." stayed in the SAME
-# segment as synD's own "a moderate link to synD" claim. The literal word
-# "negligible" then leaked into synD's returned window even though it
-# describes different, unnamed nodes entirely -- turning a previously
-# correct "moderate" verdict into a false AMBIGUOUS one. This is exactly
-# the "concluding recap sentence naming every node at once" pattern
-# _pair_windows' prefer_clean was originally built to exclude; a sentence
-# containing this kind of generic sweep-up phrase is treated as NOT
-# eligible for the list-item relaxation at all, regardless of which edge
-# is being checked, since it signals the sentence characterizes multiple
-# OTHER, unspecified relationships beyond the one target edge.
+# Generic references to remaining nodes are not pair-specific claims.
 _GENERIC_OTHER_ITEMS_RE = re.compile(
     r'\b(?:the\s+)?(?:remaining|other|rest\s+of\s+the)\s+'
     r'(?:items?|variables?|nodes?|pairs?|edges?|connections?|associations?|links?)\b',
@@ -394,74 +217,13 @@ _GENERIC_OTHER_ITEMS_RE = re.compile(
 
 
 def _prefer_clean_window_text(s, a, b, all_nodes):
-    """Returns the text to use as sentence `s`'s window for pair (a,b) if it
-    qualifies as clean -- directly, or via the list-item relaxation below --
-    else None.
+    """Return a pair-specific segment if its relationship claim is unambiguous.
 
-    DIRECTLY CLEAN (no other known node anywhere in `s`, per
-    _other_nodes_in): the whole sentence `s` is returned unchanged, exactly
-    matching this scorer's original clean-window behavior.
-
-    RELAXED CLEAN -- the calibration/sign hub-and-spoke pattern, where a is
-    always the shared hub node (ground_truth["edges"][i]["pair"][0] in
-    synthetic_networks.py / procedural_networks.py) and b is one spoke among
-    several enumerated together in the same sentence ("a weak association
-    with Node B (r=0.086) and a negligible association with Node C
-    (r=0.016)"): found via real glm-4.7 output (proc_calibration_000), a
-    hub-and-spoke response that correctly and separately labels EVERY
-    spoke's band in one compound sentence was excluded from the clean-window
-    set for BOTH of the two remaining pairs, because each pair's OTHER spoke
-    (C when checking A-B; B when checking A-C) counted as a contaminating
-    "other node" under the whole-sentence check -- even though the two
-    claims are entirely independent, self-contained list items with no
-    actual ambiguity between them. This produced a false WRONG/"bands
-    mentioned=none" result (via fallback to a vaguer plain-language
-    paraphrase with no literal band word) on an edge the model characterized
-    correctly and explicitly ("a negligible positive association with Node
-    C"). Same underlying problem as _other_nodes_in's controlled-for-
-    covariate exemption above (a legitimate, information-dense sentence
-    penalized for naming a node it is not actually asserting a relationship
-    with THIS pair), different surface pattern (an enumerated list of
-    independent claims, not a conditioning clause).
-
-    Mechanism: segment the sentence at clause-delimiting punctuation
-    (colon/semicolon -- _CLAUSE_DELIM_RE, defined below and reused here) and
-    at list-item boundaries (_LIST_ITEM_BOUNDARY_RE above). The sentence is
-    treated as clean for (a,b) only if NO other known node's mention falls
-    in the SAME segment as b's own mention -- not a's, since a's presence in
-    the sentence is already guaranteed by the caller (_pair_windows only
-    calls this once both _token_in(a, s) and _token_in(b, s) hold) and is
-    not itself a source of ambiguity about which claim belongs to which
-    spoke. Critically, the text RETURNED is trimmed to just b's own
-    segment(s), not the whole sentence -- returning the whole sentence would
-    still contain every OTHER list item's own band word as a literal
-    substring (e.g. still containing "negligible" when checking the A-B
-    pair), silently reproducing the same false-AMBIGUOUS bug one step
-    downstream in score_calibration's band-word search, even after the
-    contamination check itself was fixed. If no boundary is found at all
-    (no enumerated structure detected), this returns None (not clean),
-    identical to the pre-existing behavior.
-
-    Deliberately NOT folded into _other_nodes_in itself: score_community's
-    false-cross-community check calls that function directly (not via
-    _pair_windows' prefer_clean) with node pairs where the hub-and-spoke
-    assumption above does not hold (neither queried node is reliably the
-    sentence's shared subject) -- applying this same relaxation there was
-    checked against that function's own documented Alpha1-hub-recap
-    regression case and found to reintroduce a real false-positive (a
-    legitimate description of the HUB's own ties would be wrongly "cleaned"
-    into a candidate cross-community claim between two of its neighbors).
-    This relaxation is scoped to _pair_windows' prefer_clean path only, i.e.
-    score_calibration and score_sign, which share both the hub-and-spoke
-    network structure and the exact failure mode above.
-
-    Known limitation, not full parsing: a list item introduced without an
-    article or a comma-before-article ("...and ITS link to E is weak",
-    rather than "...and A weak link to E") is not detected as a separate
-    item and falls back to the stricter unmodified (whole-sentence)
-    behavior -- conservative (a genuinely ambiguous case is never wrongly
-    cleaned), at the cost of an occasional list item not getting the
-    relaxation it might otherwise deserve."""
+    For a hub-and-spoke list, split at clause or article-led list boundaries
+    and keep only segments naming the target spoke. A generic reference to
+    other unnamed items prevents this relaxation. Only calibration and sign
+    scoring use it; cross-community checks retain stricter pair matching.
+    """
     base_count = _other_nodes_in(s, a, b, all_nodes)
     if base_count == 0:
         return s  # already clean under the standard check; return unchanged
@@ -611,34 +373,11 @@ def _word_hit(term, text_lower, stem=False):
 
 
 def score_calibration(text, ground_truth):
-    """For each edge, find windows mentioning both nodes, and check that the
-    CORRECT band's term appears and no stronger/weaker band's term appears
-    instead. Caveat: if the model discusses two edges in the same sentence,
-    windows can overlap and this may over- or under-count -- inspect
-    `details` for the actual matched windows if a score looks surprising.
+    """Check each edge's magnitude band in pair-specific response windows.
 
-    Deliberately scores the FULL response text, not just the `## Technical
-    interpretation` section (see _split_sections, which is available for
-    section-scoped scoring and is used elsewhere for exactly that). It is
-    tempting to restrict calibration scoring to the technical section: the
-    prompt requires that section to use the standardized band words, while
-    the plain-language section is required to AVOID "negligible" and
-    improvise a lay paraphrase ("very weak") instead, and searching both
-    sections together risks exactly this "very weak"/"negligible"
-    same-window collision. In practice, restricting to the technical
-    section scores WORSE against real model output (measured on the
-    reference model's n=21 calibration set: pass rate drops several
-    points), because `prefer_clean` searching the full response often
-    finds a clean, single-pair plain-language bullet ("respondents who
-    score high on synA also tend to score moderately higher on synD") that
-    rescues a messier technical-section rendering of the same edge (a
-    table row, or a centrality-section recap sentence naming several
-    edges' bands at once, e.g. "synD = 0.22... reflecting their limited
-    connections") -- and the technical section's own table/recap style
-    turns out to be MORE prone to same-sentence multi-band bleed than
-    plain language's simpler one-claim-per-bullet style. The targeted
-    same-sentence masking below achieves the collision-avoidance goal
-    without this side effect, so the full response stays in scope."""
+    Search the full response, since either section can contain the clearest
+    description. Overlapping windows may still require manual inspection.
+    """
     details = []
     correct = 0
     all_nodes = {n for e in ground_truth["edges"] for n in e["pair"]}
@@ -684,24 +423,7 @@ def score_calibration(text, ground_truth):
 
 
 _EXPECTED_INFLUENCE_RE = re.compile(r'\bexpected influence\b', re.IGNORECASE)
-# "Expected influence" is, by construction (Burger et al. 2023's reporting
-# standard this framework operationalizes), a NODE-level aggregate -- the
-# signed sum across all of a node's own edges -- never a specific edge's
-# own sign. A centrality-section sentence describing one node's own
-# expected influence (e.g. "the positive expected influence for F
-# indicates that... the negative link to G reduces the net effect")
-# correctly uses "negative" for the F-G edge but "positive" for F's own
-# aggregate, unrelated to any single edge -- yet _pair_windows' clean-
-# window check accepts this sentence for pair (F, G) purely because it
-# names both nodes and no third one, so the unrelated "positive" bled
-# into the F-G sign check as a false AMBIGUOUS result. Found via a real
-# pilot run (proc_sign_001): the direct edge-describing sentence ("a
-# higher score on item F tend to give a lower score on item G") already
-# correctly identifies the edge as negative; only this centrality aside
-# introduced the spurious "positive" hit. Excluding "expected influence"
-# windows removes the node-level/edge-level conflation at its root
-# (the construct itself is never edge-specific) rather than patching
-# around this one example's exact wording.
+# Expected influence is node-level; its sign does not describe a particular edge.
 
 
 def score_sign(text, ground_truth):
@@ -767,30 +489,12 @@ def _community_label_denial(text, comm_a, comm_b):
 
 
 def score_hallucination(text, ground_truth):
-    """Check that no pair with a true-zero edge is discussed as if
-    associated.
+    """Flag possible relationship claims about pairs with zero edges.
 
-    A co-occurring pair (both node names appear near each other) is not by
-    itself a failure -- naming two variables in the same breath is common
-    in an overview sentence and isn't a claim about their relationship. So
-    every co-occurring pair is adjudicated, not just flagged, in three
-    ways:
-      1. Explicit denial language naming both nodes (DENIAL_PATTERNS) ->
-         clean (correctly reported as unrelated).
-      2. A general cross-community denial naming only the two nodes'
-         COMMUNITY LABELS, never the individual node names (e.g. "No edges
-         connect Community 1 to Community 2") -> clean, via
-         _community_label_denial.
-      3. Co-occurrence with no actual relation-asserting language nearby
-         (RELATION_TERMS) -- e.g. an overview sentence just naming every
-         variable -- -> clean, since naming two variables in the same
-         breath isn't itself a claim about them.
-    Only a window with BOTH co-occurrence AND relation-asserting language,
-    and NO denial of either kind, is still flagged as "possible fabricated
-    association, needs manual check" (see the CO-OCCUR detail line below) --
-    that residual case is the only one still genuinely ambiguous to regex
-    alone and is where a human/LLM-judge read is actually warranted, not
-    the whole check as this docstring previously implied."""
+    Mere co-occurrence of node names is clean. Explicit denials, including
+    community-level denials, are clean. A relational window without denial
+    is flagged for manual review.
+    """
     details = []
     clean = 0
     pairs = ground_truth["must_not_claim_association_between"]
@@ -835,14 +539,7 @@ _MEMBERSHIP_LABEL_RE = re.compile(r'\bcommunity\s*#?\s*(\d+)\b', re.IGNORECASE)
 
 
 _CLAUSE_DELIM_RE = re.compile(r'(?<!\d)\.(?!\d)|[;:!?]')
-# a period NOT immediately flanked by digits, or ;:!? -- deliberately excludes
-# ',' (see _clause_span's docstring) AND a decimal point ("0.496", "weight =
-# 0.135"). Real procedural output routinely has an edge weight or centrality
-# figure sitting right next to a node's own mention ("**B2** (strength =
-# 0.496) within Community 2") -- an earlier plain '.' -delimited version cut
-# the clause off at the decimal point in "0.496", right before "within
-# Community 2" ever came into view, silently losing that content in exactly
-# the same way an unguarded comma-split would have.
+# Preserve decimal points and comma-separated community membership lists.
 
 
 def _clause_span(sent, pos, max_chars=150):
@@ -867,71 +564,12 @@ def _clause_span(sent, pos, max_chars=150):
 
 
 def _claimed_communities_near(text, node, node_community, radius=150):
-    """All community numbers explicitly attached to `node`'s own mentions --
-    an explicit '(Community N)'/'is part of Community N'/table-row-style
-    label appearing in the same CLAUSE as a mention of `node` itself (see
-    _clause_span), not merely somewhere nearby in the raw text or even just
-    the same sentence. `node_community` is the full node -> true-community-
-    number ground truth map (used for the conflicting-node check below, NOT
-    to presuppose `node`'s own claim -- that's still exactly what this
-    function is trying to verify).
+    """Find community numbers explicitly attached to a node's mentions.
 
-    This function went through more iteration than anything else added in
-    this pass, precisely BECAUSE it's asserting something ("this label
-    belongs to that node") a bare keyword search is least naturally suited
-    to -- every condition below is a real, evidenced correction (found via
-    the hand-written regression suite and real `results_gpt_oss_120b*`
-    runs, both synthetic and procedural), not defensive over-engineering:
-    - Sentence-bounded, not just char-radius-bounded: an early version used
-      a bare character slice, which let the window run past a sentence's
-      closing period into a FOLLOWING, unrelated sentence. Fixed by
-      scanning per-sentence via _sentences() first.
-    - Clause-bounded WITHIN the sentence, not sentence-wide: "...arranged
-      into two thematic communities (Community 1: Alpha 1-Alpha 3;
-      Community 2: Beta 1-Beta 3)." let Alpha1's window reach across the
-      semicolon into "Community 2" (8/21 real reps). Fixed with
-      _clause_span. radius=150 (not a tighter value) because a full
-      "Community N: A, B, C" list, or a "providing the sole bridge between
-      Community 1 and Community 2" clause, needs to fit inside the window
-      in full for the checks below to see both numbers -- a smaller radius
-      silently truncated the SECOND number in real procedural output,
-      defeating the multi-number check before it could even run.
-    - CONFLICTING-NODE ATTRIBUTION: a label is excluded for `node` only if
-      some OTHER node, textually closer to that label, belongs to a
-      DIFFERENT true community than `node` -- not just "some other node is
-      closer" (that alone over-excludes: "**Community 1 (items A1, A2,
-      A3)**" is a correct shared list, and a plain nearest-wins rule let A1
-      win the label while A2/A3 -- equally correctly listed -- lost their
-      own claim to it entirely, a real regression found on
-      proc_community_007). Real case this DOES need to exclude: "A1's high
-      centrality reflects its strong ties to both A2 and A3 (the two
-      strongest edges in **Community 1**) and its additional weak bridge to
-      **B1**" -- A3 (true community 1, same as the label) sits closer to
-      "Community 1" than B1 (true community 2, different) does, so B1's
-      claim is excluded while A3's is not, using ground truth already
-      available to this scorer (not circular: this checks the CLOSER
-      node's OWN true community, never `node`'s).
-    - PER-OCCURRENCE MULTI-NUMBER AMBIGUITY: a SINGLE clause naming two
-      DIFFERENT community numbers together is far more often a correct
-      BRIDGE/comparison description ("providing the sole bridge between
-      Community 1 and Community 2"; "in Community 1, ... whereas in
-      Community 2, ...") than two membership assertions about the same
-      node -- so when one occurrence's own clause yields more than one
-      surviving number, THAT OCCURRENCE contributes nothing, deliberately
-      scoped no wider than the occurrence itself. This must NOT be an
-      aggregate check across the whole document: an early version
-      suppressed a node's claims entirely whenever ANY two of its
-      occurrences anywhere disagreed, which silently defeated the actual
-      point of this function on a genuine self-contradiction (a node
-      correctly listed under Community 1 in one place and incorrectly
-      relabeled Community 2 elsewhere -- exactly the real Bereznowski
-      failure mode this check exists to catch) by discarding BOTH
-      mentions as "ambiguous" instead of surfacing the mismatch. Each
-      occurrence is judged only against its own clause; genuinely
-      conflicting single-number occurrences from DIFFERENT places in the
-      document both survive into the returned set, and it's
-      score_community's job (comparing each against ground truth) to
-      notice that at most one of them can be right."""
+    Claims stay within the same sentence and clause. Ignore labels closer
+    to a node from another true community and occurrences that mention
+    multiple community numbers; preserve distinct claims made elsewhere.
+    """
     node_true_comm = node_community.get(node)
     all_nodes = set(node_community)
     claims = set()
@@ -963,32 +601,11 @@ def _claimed_communities_near(text, node, node_community, radius=150):
 
 
 def score_community(text, ground_truth):
-    """For each community, check all its members are mentioned in a shared
-    window (roughly: discussed together); check the bridge edge's band
-    language is present for that specific pair; and check two more things
-    that presence/proximity alone can't catch:
+    """Check members, bridge band, and false community claims.
 
-    - FALSE MEMBERSHIP: a node explicitly labeled with the WRONG community
-      number near its own mention (see _claimed_communities_near).
-    - FALSE CROSS-COMMUNITY ASSOCIATION: any node pair spanning two
-      DIFFERENT communities, other than the one true bridge pair, discussed
-      as related. By construction (synthetic_networks.py / gen_community in
-      procedural_networks.py) every non-bridge cross-community pair has a
-      true weight of exactly zero -- this reuses score_hallucination's own
-      denial/relational-language logic (DENIAL_PATTERNS, RELATION_TERMS) so
-      a correctly-hedged "no notable link between the two groups" statement
-      isn't flagged, only an actual unhedged claim is.
-
-    Both checks exist because presence-and-proximity alone can pass a
-    response that mentions all Alpha nodes near each other and all Beta
-    nodes near each other, while ALSO containing an outright wrong
-    membership or cross-community claim -- exactly the failure mode
-    real-data validation against the (real, non-synthetic) Bereznowski
-    network already found independently and in both directions: a
-    within-community edge mislabeled as a cross-community bridge, and a
-    cross-community edge mislabeled as within-community, contradicting the
-    report's own community table stated two paragraphs earlier (see
-    rq4_case_study_bwas_uwes_mbi_pss.md)."""
+    Check explicit wrong membership labels and unhedged associations
+    between cross-community pairs other than the true bridge.
+    """
     details = []
     checks = []
     node_community = {n: c for c, members in ground_truth["communities"].items() for n in members}
@@ -1035,13 +652,7 @@ def score_community(text, ground_truth):
         details.append("no false community-membership labels found")
 
     # -- false cross-community association claims (every non-bridge cross pair) --
-    # Same-group-scoping language ("each connected to the two other members of
-    # THEIR COMMUNITY") describes a node's WITHIN-community connections, not a
-    # relationship between the two queried (cross-community) nodes -- found via
-    # real output where two same-rank nodes from different communities were named
-    # together purely because of a shared centrality value, not any claimed link
-    # between them. Excluded here the same way DENIAL_PATTERNS excludes an
-    # explicit denial.
+    # Within-group language does not assert a cross-community edge.
     _SAME_GROUP_SCOPE_RE = re.compile(
         r"\b(?:their|its|each\s+other'?s?)\s+(?:own\s+|respective\s+)?(?:community|group|cluster|block)\b"
         r"|\bwithin\s+(?:their|its|the\s+same)\s+(?:community|group|cluster|block)\b"
@@ -1127,27 +738,14 @@ def score_centrality(text, ground_truth):
     combined = " ".join(windows).lower()
 
     central_terms = ["central", "connect", "hub", "highly", "most"]
-    # "connect" (not "connected") so _word_hit's regex fallback below also catches
-    # "connection"/"connections"/"connectivity" -- a real model said "the connection
-    # between synP and the other four items is fairly strong", which the old exact-word
-    # "connected" term missed entirely.
+    # Stem matching also covers "connections" and "connectivity".
     offset_terms = ["offset", "cancel", "mixed", "both directions", "opposing", "net", "balance",
                      "not consistently", "no net", "zero", "neutral"]
 
     central_hit = any(_word_hit(t, combined, stem=True) if " " not in t else t in combined for t in central_terms)
     offset_hit = any(_word_hit(t, combined) if " " not in t else t in combined for t in offset_terms)
 
-    # A response can convey the same "mixed/offsetting direction" fact this check is
-    # looking for without ever using a summary word like "cancel"/"net"/"offset" -- simply
-    # describing SOME of the node's edges as higher/positive and OTHERS as lower/negative
-    # already says the same thing. Found via real model output: "...also tend to give
-    # higher scores on synQ and synR... At the same time, a high score on synP is linked to
-    # lower scores on synS and synT" correctly describes two positive and two negative
-    # edges for the node (exactly the ground truth), but scored 0.0 because none of the
-    # offset_terms keywords were used. Checked as simple bag-of-words presence anywhere in
-    # the node's own windows (not proximity-bound, unlike POSITIVE_TERMS/NEGATIVE_TERMS'
-    # higher-then-lower patterns, which require no intervening period and so don't apply
-    # once the two directions are described in separate sentences, as they were here).
+    # Explicit positive and negative edge descriptions imply mixed direction.
     mixed_direction_hit = (_word_hit("higher", combined) and _word_hit("lower", combined)) or (
         bool(re.search(r"positiv\w*", combined)) and bool(re.search(r"negativ\w*", combined)))
     offset_hit = offset_hit or mixed_direction_hit
@@ -1161,11 +759,7 @@ def score_centrality(text, ground_truth):
 
 
 _LOOKBACK_DELIM_RE = re.compile(r'(?<!\d)\.(?!\d)|[;:!?,]')
-# a period NOT immediately flanked by digits, or ;:!?, -- excludes a decimal
-# point ("partial r = 0.70") from counting as a clause boundary, the same
-# fix _clause_span needed for the same reason: a figure sitting right next
-# to the causal term would otherwise truncate the lookback at the decimal
-# point before it ever reached an earlier negation cue.
+# Preserve decimal points when bounding causal negation to a clause.
 
 
 def _clause_lookback(text_lower, pos, max_chars=200):

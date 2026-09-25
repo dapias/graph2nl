@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-Generate validation networks for the six graph2nl competencies.
+procedural_networks.py -- Procedurally generated networks for Graph2NL
+validation.
 
-These cases vary node counts, edges, weights, and community structure.
+This module generates additional diagnostic networks for the same six
+evaluation competencies defined in synthetic_networks.py. Unlike the
+hand-built networks, these cases vary selected network properties such as
+node count, edge structure, edge weights, and community or centrality
+configuration.
 
 Each generated test case contains:
   - id and competency identifiers
@@ -10,9 +15,13 @@ Each generated test case contains:
   - a network dictionary matching the network_for_llm.json schema
   - structured ground truth used by scorer.py
 
-Ground truth comes from the construction parameters; edges are not estimated
-from data. Only the network is sent to the LLM. Descriptions and ground truth
-remain with the scorer.
+Ground truth is determined directly from the parameters used to construct
+each network. The networks are generated rather than estimated from data, so
+their edge values are exact by construction.
+
+Only the network itself is sent to the LLM. Evaluation metadata such as the
+test id, competency name, description, and ground truth remain scorer-side
+and are not included in the model input.
 
 Usage:
     from graph2nl.validation.procedural_networks import \
@@ -28,7 +37,8 @@ The procedural validation suite is normally run through:
     python3 -m graph2nl.validation.run_validation \
         --llm-config ... --source procedural
 
-Running this file directly previews or exports cases without LLM scoring.
+Running this file directly can be used to generate or preview the procedural
+test cases; it does not itself perform LLM scoring.
 """
 
 import argparse
@@ -51,12 +61,15 @@ def _abstract(letter, note=""):
 
 
 def _min_eig_partial_corr(node_ids, edges):
-    """Minimum eigenvalue of the implied precision matrix.
-
-    The diagonal is 1, and each off-diagonal entry is minus the edge weight
-    (or 0 for an absent edge). Positivity makes the partial-correlation
-    network compatible with a Gaussian graphical model.
-    """
+    """Minimum eigenvalue of the matrix with 1s on the diagonal and
+    -weight off-diagonal (0 for pairs with no edge). Positive definite iff
+    SOME valid precision matrix (any positive diagonal rescaling, which
+    preserves definiteness by Sylvester's law of inertia) could produce
+    these exact partial correlations with every unlisted pair at exactly
+    zero -- i.e. iff this is a mathematically legitimate Gaussian Graphical
+    Model, not just independently chosen numbers. Identical logic to
+    synthetic_networks._min_eig_partial_corr -- duplicated for the same
+    standalone-module reason as _build_network below."""
     idx = {nid: i for i, nid in enumerate(node_ids)}
     n = len(node_ids)
     p = np.eye(n)
@@ -84,11 +97,25 @@ def _assert_valid_partial_corr_network(node_ids, edges):
 
 
 def _build_network(node_defs, edges, note_extra="", include_causal_instruction=True):
-    """Build a valid network without depending on synthetic_networks.py.
+    """Identical construction logic to synthetic_networks._build_network --
+    duplicated rather than imported so this module has no hard dependency on
+    the hand-built test file and can be read/audited standalone.
 
-    Causal tests omit the explicit causal warning, but retain the
-    cross-sectional description. Invalid edge weights raise ValueError.
-    """
+    Deliberately takes no run-name/description argument -- see module
+    docstring. `include_causal_instruction` is False only for the
+    causal_language_avoidance networks, where including the "no causal
+    interpretation warranted" instruction in the input would hand the model
+    the exact rule that test checks it follows on its own -- note this is
+    narrower than the "cross-sectional" FACT below, which is always stated.
+    Every other competency keeps the instruction too (harmless, generic
+    context there).
+
+    Raises ValueError (via _assert_valid_partial_corr_network) if `edges`
+    does not correspond to a mathematically valid partial-correlation
+    network -- callers that draw random weights (see _gen_community below)
+    must retry with different weights on this error rather than let it
+    propagate, since a caller producing an invalid network is a generator
+    bug, not something this function should silently paper over."""
     _assert_valid_partial_corr_network([nid for nid, _, _ in node_defs], edges)
 
     strength = defaultdict(float)
@@ -141,7 +168,10 @@ def _build_network(node_defs, edges, note_extra="", include_causal_instruction=T
         "modularity": None,
         "note": " ".join(note_parts),
     }
-    # Sample size is inapplicable to constructed networks, so omit meta.n.
+    # n is genuinely unknown/inapplicable for a procedurally-constructed
+    # network -- omitted rather than set to a placeholder number, which
+    # would be false and could prompt spurious "given the large sample
+    # size" commentary. meta.n is documented as optional.
 
     return {
         "meta": meta,
@@ -151,20 +181,52 @@ def _build_network(node_defs, edges, note_extra="", include_causal_instruction=T
 
 
 def _node_label(idx):
-    """Use short IDs that the scorer can match in the model's response."""
+    """Single-letter labels (e.g. "A", "I") are deliberately avoided: they
+    coincide with English words ("A strong association...", "I") and so
+    cannot be matched reliably by the scorer. Labels are letter+digit
+    tokens (N1, N2, ...; A1..C4 for communities; pos1/neg1 for centrality).
+
+    Just the plain label (e.g. "A1", "N3", "pos2") -- deliberately no
+    run-specific prefix (hence the unused rng/prefix parameters still
+    present at every call site, kept for a stable call signature across
+    generators).
+
+    A prefixed ID (e.g. "pg3_A1") is a real correctness hazard for this
+    scorer, not just cosmetic: the scorer's _mentions() requires the exact
+    node ID as a literal substring in the model's text (this is reliable
+    specifically because the hand-built battery's IDs, e.g. "synA",
+    "Alpha1", are already terse enough that no model would think to
+    abbreviate them). A model that writes natural prose about "the A group
+    (A1-A4)" is reasonably dropping an ugly, meaningless run-prefix it was
+    never asked to reproduce -- but a prefixed ID like "pg3_A1" would then
+    never appear verbatim anywhere in that response even though every node
+    was clearly discussed, so a scorer keyed on the prefixed ID could only
+    ever pass such a trial by coincidence.
+
+    The prefix is also not functionally necessary: every generator below
+    already produces unique labels within a single network without it (a
+    community's members are "A1".."A4"/"B1".."B4"; a hub-and-spokes
+    network's nodes are "N1"/"N2".."N5"; etc.), and the LLM only ever sees one
+    network per prompt, so there is no cross-network collision to guard
+    against."""
     return str(idx)
 
 
-# 1. Calibration: a star with 2-4 edges drawn from distinct magnitude bands.
+# --------------------------------------------------------------------------
+# 1. Calibration: star network from a hub, edges spanning a randomly chosen
+#    subset (size 2-4) of the four effect-size bands, magnitude drawn
+#    uniformly within each chosen band. Node count (hub + spokes) varies
+#    with how many bands are used, so density is implicitly varied too.
+# --------------------------------------------------------------------------
 def _gen_calibration(rng, idx):
     n_edges = rng.choice([2, 3, 3, 4])  # weight towards 3-4 for a fuller test
     bands = rng.sample(list(CALIBRATION_BANDS.keys()), k=n_edges)
-    hub = _node_label("A")
+    hub = _node_label("N1")
     node_defs = [(hub, _abstract(hub), 1)]
     edges = []
     gt_edges = []
     for i, band in enumerate(bands):
-        spoke = _node_label(chr(ord("B") + i))
+        spoke = _node_label(f"N{i + 2}")
         node_defs.append((spoke, _abstract(spoke), 1))
         lo, hi = CALIBRATION_BANDS[band]
         w = round(rng.uniform(lo, hi), 3)
@@ -185,17 +247,29 @@ def _gen_calibration(rng, idx):
     }
 
 
-# 2. Sign: a star with 2-4 positive and negative edges.
-# A star is valid when the sum of squared edge weights is below 1.
-# Redraw the whole star if that condition fails.
+# --------------------------------------------------------------------------
+# 2. Sign/direction: hub with 2-4 spokes, each independently positive or
+#    negative, magnitude drawn from the moderate/strong bands (unambiguous
+#    enough that the test is about SIGN, not about hedged-magnitude language).
+#
+#    A star network is valid (positive-definite precision matrix) iff
+#    sum(r_i^2) < 1 across its spokes -- with up to 4 spokes independently
+#    drawn as large as 0.55, this boundary can be crossed (empirically,
+#    roughly 2 per 1000 draws at n_per_competency=1000). Handled with the
+#    same reject-and-regenerate approach as _gen_community above, applied
+#    to the whole hub-and-spokes draw (including the degenerate-all-same-
+#    sign correction below, since redoing it is cheap and avoids having to
+#    reason separately about whether a sign flip alone could ever
+#    invalidate an otherwise-valid draw).
+# --------------------------------------------------------------------------
 _MAX_SIGN_RETRIES = 500
 
 
 def _gen_sign(rng, idx):
     n_pairs = rng.choice([2, 3, 3, 4])
-    hub = _node_label("F")
+    hub = _node_label("N1")
     node_defs = [(hub, _abstract(hub), 1)]
-    spokes = [_node_label(chr(ord("G") + i)) for i in range(n_pairs)]
+    spokes = [_node_label(f"N{i + 2}") for i in range(n_pairs)]
     node_defs += [(spoke, _abstract(spoke), 1) for spoke in spokes]
     node_ids = [hub] + spokes
 
@@ -208,7 +282,9 @@ def _gen_sign(rng, idx):
             w = mag if sign == "positive" else -mag
             edges.append((hub, spoke, w))
             gt_edges.append({"pair": (hub, spoke), "weight": w, "expected_sign": sign})
-        # Ensure both signs appear so the test distinguishes them.
+        # guard against a degenerate all-same-sign draw -- the point of this
+        # test is discriminating sign, so force at least one of each when
+        # n_pairs >= 2
         signs_present = {e["expected_sign"] for e in gt_edges}
         if len(signs_present) == 1 and n_pairs >= 2:
             gt_edges[-1]["expected_sign"] = "negative" if gt_edges[-1]["expected_sign"] == "positive" else "positive"
@@ -236,11 +312,15 @@ def _gen_sign(rng, idx):
     }
 
 
-# 3. Hallucination resistance: one edge; all other pairs have weight zero.
+# --------------------------------------------------------------------------
+# 3. Hallucination resistance: exactly one real edge among n_nodes (4-8),
+#    split into two communities; every other pair is a true zero.
+# --------------------------------------------------------------------------
 def _gen_hallucination(rng, idx):
     n_nodes = rng.choice([4, 5, 6, 6, 7, 8])
-    labels = [_node_label(chr(ord("J") + i)) for i in range(n_nodes)]
-    # The linked pair is community 1; the isolated nodes are community 2.
+    labels = [_node_label(f"N{i + 1}") for i in range(n_nodes)]
+    # first two nodes form the one real edge and community 1; the rest are
+    # community 2, entirely edge-free
     real_a, real_b = labels[0], labels[1]
     node_defs = [(real_a, _abstract(real_a), 1), (real_b, _abstract(real_b), 1)]
     node_defs += [(l, _abstract(l), 2) for l in labels[2:]]
@@ -268,9 +348,26 @@ def _gen_hallucination(rng, idx):
     }
 
 
-# 4. Community structure: 2-3 dense blocks with one weak bridge.
-# Redraw invalid blocks, then redraw the full network if the bridge makes
-# their combined precision matrix non-positive-definite.
+# --------------------------------------------------------------------------
+# 4. Community grounding: 2-3 tightly-connected blocks of 3-4 nodes each,
+#    joined by one weak bridge edge between the first two blocks.
+#
+#    A fully-connected block of 3-4 nodes with every pairwise edge drawn
+#    independently from the strong/moderate bands is NOT guaranteed to be a
+#    valid partial-correlation network -- a dense subgraph has real
+#    constraints on how strong every pairwise edge can simultaneously be
+#    (the implied precision matrix must stay positive definite): naive
+#    independent-per-edge drawing can produce networks that no real
+#    Gaussian Graphical Model could have generated, at a rate high enough
+#    to matter (external-review stress-testing found this affecting a
+#    majority of default-seed community_grounding networks before this
+#    module's two-level resampling was in place). Resampling therefore
+#    happens at two levels: each block's weights are redrawn until that
+#    block alone validates, and then -- because two individually-valid
+#    blocks plus a bridge edge are still not GUARANTEED to be jointly valid
+#    -- the full network (all blocks + bridge together) is redrawn from
+#    scratch if it doesn't also validate as a whole.
+# --------------------------------------------------------------------------
 _MAX_BLOCK_RETRIES = 500
 _MAX_NETWORK_RETRIES = 200
 
@@ -340,10 +437,13 @@ def _gen_community(rng, idx):
     }
 
 
-# 5. Centrality: equal positive and negative edges cancel in influence.
+# --------------------------------------------------------------------------
+# 5. Centrality nuance: hub with k positive + k negative edges of equal
+#    magnitude (k in {2,3}) -- high strength, exactly-zero expected influence.
+# --------------------------------------------------------------------------
 def _gen_centrality(rng, idx):
     k = rng.choice([2, 2, 3])
-    hub = _node_label("P")
+    hub = _node_label("N1")
     mag = round(rng.uniform(0.20, 0.35), 3)
     node_defs = [(hub, _abstract(hub), 1)]
     edges = []
@@ -374,15 +474,23 @@ def _gen_centrality(rng, idx):
     }
 
 
-# 6. Causal language: vary the V-W weight and omit the explicit causal
-# warning from the network note. Node labels and banned terms stay fixed.
+# --------------------------------------------------------------------------
+# 6. Causal-language avoidance: one very strong edge, randomized magnitude
+#    and labels. banned_terms is a fixed list (not network-dependent), so
+#    procedural variation here is mainly about not letting the model rely on
+#    memorized phrasing from the one hand-built V-W example. The "no causal
+#    interpretation warranted" caveat is deliberately withheld from these
+#    networks' meta.note (unlike every other competency here) so this test
+#    measures intrinsic recognition, not instruction-following of a caveat
+#    handed to the model in its own input -- see _build_network's docstring.
+# --------------------------------------------------------------------------
 _BANNED_TERMS = ["causes", "cause of", "leads to", "leading to", "drives", "driving",
                  "results in", "resulting in", "because of", "due to", "brings about"]
 
 
 def _gen_causal(rng, idx):
-    a = _node_label("V")
-    b = _node_label("W")
+    a = _node_label("N1")
+    b = _node_label("N2")
     w = round(rng.uniform(0.45, 0.75), 3)
     return {
         "id": f"proc_causal_avoidance_{idx:03d}",
@@ -413,9 +521,10 @@ _GENERATORS = {
 
 
 def generate_procedural_networks(n_per_competency=10, seed=2026):
-    """Return a reproducible list of cases for a given count and seed."""
-    if n_per_competency < 1:
-        raise ValueError("n_per_competency must be at least 1")
+    """Deterministic: same (n_per_competency, seed) always yields the same
+    battery. Returns a flat list of test_case dicts in the same shape as
+    synthetic_networks.SYNTHETIC_NETWORKS, consumable by scorer.score()
+    and run_validation.py unchanged."""
     rng = random.Random(seed)
     out = []
     for competency, gen_fn in _GENERATORS.items():
@@ -438,9 +547,6 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=2026)
     ap.add_argument("--out", help="If given, write the full battery as JSON to this path")
     args = ap.parse_args()
-
-    if args.n_per_competency < 1:
-        ap.error("--n-per-competency must be at least 1")
 
     nets = generate_procedural_networks(args.n_per_competency, args.seed)
     print(f"Generated {len(nets)} procedural networks "

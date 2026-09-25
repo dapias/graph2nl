@@ -1,83 +1,121 @@
 #!/usr/bin/env python3
-"""Deterministic template baseline for network interpretation.
+"""
+baselines.py -- Net2Narratives: deterministic template baseline.
 
-Builds an interpretation from the same network data given to the LLM,
-without using test ground truth or an API. Scoring this output checks
-whether the benchmark criteria can be met from the supplied network
-(paper, Appendix A.2).
+Given only the network dictionary (meta/nodes/edges) that the LLM also
+receives, this module renders one sentence per edge ("A and B have a
+{band} {sign} partial correlation (r = {weight})."), using the protocol's
+magnitude bands; one sentence per community (including single-node
+communities); and one sentence per node whose positive and negative edges
+largely offset, calling it the most connected node only if it has the
+highest strength. It never reads a test's ground truth. Absent edges are
+described as zero by construction for constructed networks and as "not
+retained" for estimated ones (those with meta.n).
 
-Usage:
+Because every statement is computed directly from the supplied numbers, the
+template cannot invent edges, misstate signs or magnitude bands, or use
+causal language. Scoring it with the same evaluator therefore checks that
+each competency's criterion can be satisfied from the supplied network,
+i.e. that a perfect score is attainable by construction (paper,
+Appendix A.2). No API access is needed.
+
+Usage (matching the paper's benchmark settings):
     python3 -m net2narratives.validation.baselines --source both \
         --n-per-competency 100 --seed 4242 --out-dir baseline_results
 """
 import argparse
+import datetime
 import json
 import pathlib
 
-CALIBRATION_BAND_THRESHOLDS = [
-    (0.05, "negligible"),
-    (0.15, "weak"),
-    (0.30, "moderate"),
-    (float("inf"), "strong"),
-]
-
-
+# Magnitude bands exactly as defined in the full protocol:
+# negligible |w| < 0.05; weak 0.05 <= |w| < 0.15;
+# moderate 0.15 <= |w| <= 0.30; strong |w| > 0.30.
 def _band_for(weight):
     aw = abs(weight)
-    for threshold, band in CALIBRATION_BAND_THRESHOLDS:
-        if aw < threshold:
-            return band
+    if aw < 0.05:
+        return "negligible"
+    if aw < 0.15:
+        return "weak"
+    if aw <= 0.30:
+        return "moderate"
     return "strong"
 
 
-def _node_lookup(network):
-    return {n["id"]: n for n in network["nodes"]}
+# A node's positive and negative edges "largely offset" when its expected
+# influence is small relative to its strength.
+OFFSET_RATIO = 0.15
+
+
+def _is_estimated(network):
+    """True for estimated networks (sample size given), False for networks
+    whose values are fixed by construction. Only affects how absent edges
+    are described."""
+    return network.get("meta", {}).get("n") is not None
 
 
 def template_interpretation(network):
-    """Return the same interpretation for the same network, using no ground truth."""
-    nodes = _node_lookup(network)
+    """Render a deterministic interpretation from the network alone.
+
+    Uses only meta/nodes/edges -- never a test's ground truth. The same
+    input always produces the same text.
+    """
+    nodes = network["nodes"]
+    edges = network["edges"]
     lines = []
 
+    if _is_estimated(network):
+        absent = ("pairs not listed below have no retained edge in this estimated "
+                  "network, which does not by itself show that they are unrelated")
+    else:
+        absent = "any pair not listed below has no direct association in this network"
     lines.append(
-        f"This network has {len(network['nodes'])} variables and "
-        f"{len(network['edges'])} nonzero partial correlations (edges); "
-        f"any pair not listed below has no direct association in this network."
+        f"This network has {len(nodes)} variables and {len(edges)} nonzero partial "
+        f"correlations (edges); {absent}."
     )
 
-    # Describe each edge.
-    for e in network["edges"]:
-        a, b = e["source"], e["target"]
+    # 1. One sentence per edge, in the order given.
+    for e in edges:
         band = _band_for(e["weight"])
         sign = "positive" if e["weight"] > 0 else "negative"
         lines.append(
-            f"{a} and {b} have a {band} {sign} partial correlation (r = {e['weight']:.3f})."
+            f"{e['source']} and {e['target']} have a {band} {sign} partial "
+            f"correlation (r = {e['weight']:.3f})."
         )
 
-    # Describe each assigned community.
+    # 2. One sentence per community, including single-node communities.
     communities = {}
-    for nid, n in nodes.items():
+    for n in nodes:
         c = n.get("community")
         if c is not None:
-            communities.setdefault(c, []).append(nid)
+            communities.setdefault(c, []).append(n["id"])
     for cid, members in sorted(communities.items(), key=lambda kv: str(kv[0])):
-        if len(members) > 1:
+        if len(members) == 1:
+            lines.append(f"Community {cid} consists of a single variable: {members[0]}.")
+        else:
             lines.append(f"Community {cid} consists of: {', '.join(members)}.")
 
-    # Identify nodes whose positive and negative edges largely offset.
-    for nid, n in nodes.items():
+    # 3. One sentence per node whose positive and negative edges largely
+    # offset. "Most connected" is stated only if the node has the highest
+    # strength in the network.
+    strengths = [n.get("strength_centrality") for n in nodes
+                 if n.get("strength_centrality") is not None]
+    max_strength = max(strengths) if strengths else None
+    for n in nodes:
         s = n.get("strength_centrality")
         ei = n.get("expected_influence")
-        if s is None or ei is None or s == 0:
+        if s is None or ei is None or s == 0 or abs(ei) >= OFFSET_RATIO * s:
             continue
-        if abs(ei) < 0.15 * s:
-            lines.append(
-                f"{nid} is among the most connected (central) nodes in the network "
-                f"(strength centrality = {s:.3f}), but its positive and negative "
-                f"associations largely offset, giving it a near-zero net expected "
-                f"influence ({ei:.3f}) -- it is not consistently associated with higher "
-                f"or lower values overall, despite its high connectivity."
-            )
+        if s == max_strength:
+            rank = "has the highest strength centrality in the network"
+        else:
+            rank = "has a strength centrality"
+        lines.append(
+            f"{n['id']} {rank} (strength = {s:.3f}), but its positive and negative "
+            f"associations largely offset, giving it a near-zero expected influence "
+            f"({ei:.3f}); its connections do not add up to a consistent net "
+            f"association with higher or lower values."
+        )
 
     lines.append(
         "This is a cross-sectional partial-correlation network, so these are "

@@ -181,8 +181,8 @@ def main():
 
     network_path = pathlib.Path(args.network)
     with open(network_path) as f:
-        network_json = f.read()
-        # The prompt tells the model that edges are sorted by absolute magnitude.
+        network = json.load(f)
+    # Present edges to the model in descending order of absolute weight.
     network["edges"] = sorted(network.get("edges", []), key=lambda e: -abs(e["weight"]))
     network_json = json.dumps(network, indent=2)
 

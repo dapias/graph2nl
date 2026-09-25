@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "graph2nl"
-version = "0.1.0"
+version = "1.0.0"	
 description = "Validated LLM interpretation of statistical association networks (partial-correlation matrices) as natural language."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -32,3 +32,6 @@ include = ["graph2nl*"]
 
 [tool.setuptools.package-data]
 graph2nl = ["prompts/*.md"]
+
+[tool.setuptools.dynamic]
+version = {attr = "graph2nl.__version__"}

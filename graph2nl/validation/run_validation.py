@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
 """
-run_validation.py -- graph2nl: run the synthetic ground-truth test
-suite against a real LLM endpoint and score the results.
+Run validation networks through an LLM and score their interpretations.
 
-For each network in synthetic_networks.SYNTHETIC_NETWORKS: builds the same
-kind of prompt the real interpret.py pipeline would, sends it to the configured LLM,
-scores the response with scorer.py, and writes both the raw output and a
-summary table.
+Uses the graph2nl prompt and scorer, then saves each response and a summary.
+Use --repeats to assess variation across LLM responses.
 
-Supports repeating each test N times (--repeats) to check run-to-run
-consistency, since LLM output is not deterministic even at low temperature.
-
-Requires the same setup as graph2nl.interpret: `pip install
-graph2nl` (which pulls in openai/pyyaml), and GWDG_API_KEY (or your
-configured api_key_env) set, e.g. via a .env in your working directory.
+Requires graph2nl and the API key named in the LLM configuration (for
+example, GWDG_API_KEY). The key can be set in a working-directory .env file.
 
 Usage:
     graph2nl-validate --llm-config examples/llm_config.example.yaml
@@ -33,16 +26,12 @@ import yaml
 from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
 
 from graph2nl.interpret import load_prompt_template, call_llm, resolve_prompt_template, LLMEmptyResponseError
-from graph2nl.validation.synthetic_networks import SYNTHETIC_NETWORKS, get_network
+from graph2nl.validation.synthetic_networks import SYNTHETIC_NETWORKS
 from graph2nl.validation.procedural_networks import generate_procedural_networks
 from graph2nl.validation.scorer import score
 
-# call_llm() already retries these with its own exponential backoff (see
-# interpret.py); they're caught again here in case that internal backoff
-# still isn't enough (e.g. a sustained rate-limit window) -- same
-# retry-once-then-record-and-continue policy as LLMEmptyResponseError, so a
-# persistent 429 degrades one repeat to an "error": true result instead of
-# crashing the whole --repeats 21 / multi-model batch.
+# call_llm retries these errors internally. If they persist, retry once here
+# before recording an error for this repeat and continuing.
 _LLM_RETRYABLE_ERRORS = (LLMEmptyResponseError, RateLimitError, APIConnectionError,
                           APITimeoutError, InternalServerError)
 
@@ -70,6 +59,13 @@ def main():
                           "relying only on retry-after-429. Set to 0 to disable.")
     args = ap.parse_args()
 
+    if args.repeats < 1:
+        ap.error("--repeats must be at least 1")
+    if args.n_per_competency < 1:
+        ap.error("--n-per-competency must be at least 1")
+    if args.call_delay < 0:
+        ap.error("--call-delay cannot be negative")
+
     with open(args.llm_config) as f:
         llm_cfg = yaml.safe_load(f)
 
@@ -78,7 +74,9 @@ def main():
 
     if args.test_id:
         all_nets = list(SYNTHETIC_NETWORKS) + generate_procedural_networks(args.n_per_competency, args.proc_seed)
-        tests = [next(t for t in all_nets if t["id"] == args.test_id)]
+        tests = [t for t in all_nets if t["id"] == args.test_id]
+        if not tests:
+            ap.error(f"unknown --test-id: {args.test_id}")
     else:
         tests = []
         if args.source in ("synthetic", "both"):
@@ -91,13 +89,8 @@ def main():
 
     summary_path = out_dir / "summary.json"
 
-    # Resume support: if this --out-dir already has a summary.json (e.g.
-    # from a run that crashed on a persistent rate-limit error before this
-    # fix), pick up where it left off instead of silently overwriting
-    # everything from scratch. Only non-error entries count as "done" --
-    # an "error": true repeat from a prior run is deliberately re-attempted
-    # rather than kept, since it represents a call that never produced a
-    # scoreable result.
+    # Resume completed repeats from summary.json. Retry prior LLM call errors
+    # because they did not produce scoreable responses.
     all_results = []
     completed = set()
     if summary_path.exists():
@@ -130,17 +123,8 @@ def main():
                 time.sleep(args.call_delay)
             first_call = False
 
-            # A single flaky repeat (e.g. a reasoning model returning an
-            # empty completion, or a rate-limit/connection error that
-            # outlasts call_llm's own internal backoff -- see
-            # _LLM_RETRYABLE_ERRORS above) should not abort an entire
-            # --repeats 21 / multi-competency batch and lose every
-            # already-completed result. Retry once more here (these
-            # failure modes are typically transient), then record it as an
-            # explicit error result and move on rather than crashing --
-            # and since results are resumable now (see above), a
-            # persistent outage can just be re-run later against the same
-            # --out-dir to pick up only what's still missing.
+            # Retry transient LLM failures once, then record an error and
+            # continue. A later run with the same output directory retries it.
             llm_text = None
             error_message = None
             for attempt in range(2):
@@ -167,17 +151,8 @@ def main():
             result["repeat"] = rep
             result["model"] = llm_cfg["model"]
             result["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
-            # Carry the generation parameters through into summary.json --
-            # test_case["params"] (e.g. block_size/n_blocks for
-            # community_grounding, n_edges/bands for calibration) only
-            # exists on procedural test cases (see procedural_networks.py's
-            # generator functions); hand-built SYNTHETIC_NETWORKS entries
-            # have neither "params" nor "source", hence the defaults below.
-            # Without this, checking whether pass rate depends on structural
-            # complexity (e.g. does community_grounding degrade as block
-            # size grows) requires re-deriving each network's parameters
-            # from its test_id after the fact instead of reading them
-            # straight out of the results file.
+            # Keep procedural generation parameters for later analysis;
+            # hand-built networks use the defaults below.
             result["source"] = test_case.get("source", "synthetic")
             result["params"] = test_case.get("params", {})
             all_results.append(result)
@@ -190,10 +165,7 @@ def main():
             with open(case_dir / f"score{suffix}.json", "w") as f:
                 json.dump(result, f, indent=2)
 
-            # Write the running summary after every repeat (not just at the
-            # end) so a later crash -- this repeat's error handling covers
-            # the known failure mode, but not every possible one -- doesn't
-            # discard already-completed, API-metered results.
+            # Save after each repeat so interrupted runs can resume.
             with open(summary_path, "w") as f:
                 json.dump(all_results, f, indent=2)
 

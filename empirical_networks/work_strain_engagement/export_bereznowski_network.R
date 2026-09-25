@@ -15,7 +15,7 @@
 # this study and the Supplementary material are available at
 # https://osf.io/jvqfa/."). To reproduce this export, download dataset.csv
 # from that OSF deposit and place it at the path set in DATA_PATH below (or
-# pass a different path via the GRAPH2NL_BEREZNOWSKI_DATA environment
+# pass a different path via the NET2NARRATIVES_BEREZNOWSKI_DATA environment
 # variable). Citation: Bereznowski, P., Atroszko, P. A., & Konarski, R.
 # (2023). Work addiction, work engagement, job burnout, and perceived
 # stress: A network analysis. Frontiers in Psychology, 14, 1130069.
@@ -82,7 +82,7 @@ library(jsonlite)
 # every write, and guarantees input/output resolution can't disagree.
 SCRIPT_DIR <- .get_script_dir()
 
-env_path <- Sys.getenv("GRAPH2NL_BEREZNOWSKI_DATA", unset = NA)
+env_path <- Sys.getenv("NET2NARRATIVES_BEREZNOWSKI_DATA", unset = NA)
 candidates <- c(
   env_path,
   file.path(SCRIPT_DIR, "data", "dataset.csv"),
@@ -93,7 +93,7 @@ found <- candidates[file.exists(candidates)]
 
 if (length(found) == 0) {
   stop(sprintf(
-    "Could not find dataset.csv in any of:\n  %s\nDetected script directory: %s\nCurrent working directory: %s\nIf the script directory above is wrong, you likely ran this via source()/console-paste rather than `Rscript file.R`, and rstudioapi (if installed) also couldn't resolve it -- setwd() to the script's folder first, or set GRAPH2NL_BEREZNOWSKI_DATA to the full path of dataset.csv. Download the file itself from https://osf.io/jvqfa/ (Bereznowski, Atroszko & Konarski, 2023) if you don't already have it.",
+    "Could not find dataset.csv in any of:\n  %s\nDetected script directory: %s\nCurrent working directory: %s\nIf the script directory above is wrong, you likely ran this via source()/console-paste rather than `Rscript file.R`, and rstudioapi (if installed) also couldn't resolve it -- setwd() to the script's folder first, or set NET2NARRATIVES_BEREZNOWSKI_DATA to the full path of dataset.csv. Download the file itself from https://osf.io/jvqfa/ (Bereznowski, Atroszko & Konarski, 2023) if you don't already have it.",
     paste(candidates, collapse = "\n  "), SCRIPT_DIR, getwd()
   ))
 }

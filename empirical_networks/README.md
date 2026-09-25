@@ -38,7 +38,7 @@ supplementary materials (https://osf.io/jvqfa/) and place it in a `data/`
 subdirectory next to `export_published_network.R` (i.e.
 `data/dataset.csv`), then run the script -- it locates that file
 automatically regardless of your working directory, or you can point it
-elsewhere via the `GRAPH2NL_BEREZNOWSKI_DATA` environment variable.
+elsewhere via the `NET2NARRATIVES_BEREZNOWSKI_DATA` environment variable.
 Requires R packages `bootnet`, `dplyr`, `igraph`, `qgraph`, `jsonlite`.
 The original `script.R` is not needed to run this reproduction (its
 data-prep logic is already reused verbatim above) -- download it from the

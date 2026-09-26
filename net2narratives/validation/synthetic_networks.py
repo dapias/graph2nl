@@ -126,6 +126,8 @@ def _abstract(letter, note=""):
 
 SYNTHETIC_NETWORKS = []
 
+      
+        
 # 1. Calibration: one edge in each magnitude band.
 SYNTHETIC_NETWORKS.append({
     "id": "calibration",
@@ -133,8 +135,9 @@ SYNTHETIC_NETWORKS.append({
     "description": (
         "Star network from hub A: A-B negligible (0.02), A-C weak (0.10), A-D moderate (0.22), "
         "A-E strong (0.45). All other pairs have NO edge. Tests whether the LLM applies the "
-        "prompt's own calibration thresholds (<0.05 negligible, 0.05-0.15 weak, 0.15-0.30 "
-        "moderate, >0.30 strong) correctly and doesn't overstate small edges or understate large ones."
+        "prompt's own calibration thresholds (|w| < 0.05 negligible, 0.05 <= |w| < 0.15 "
+        "weak, 0.15 <= |w| <= 0.30 moderate, |w| > 0.30 strong) correctly and doesn't "
+        "overstate small edges or understate large ones."
     ),
     "network": _build_network(
         [("synA", _abstract("synA"), 1), ("synB", _abstract("synB"), 1), ("synC", _abstract("synC"), 1),

@@ -37,7 +37,57 @@ _COMPARATIVE_SAFE_PATTERN = {
 
 # "less strongly" / "more weakly" compare edges; they do not assign a band
 # (same rationale as the -er/-est exclusion above).
-_COMPARATIVE_PHRASE = re.compile(r"\b(?:less|more)\s+(?:strong|weak)(?:ly)?\b")
+_COMPARATIVE_PHRASE = re.compile(
+    r"\b(?:less|more|not\s+as|not\s+so|rather\s+than(?:\s+a)?)\s+(?:strong|weak)(?:ly|er)?\b")
+
+def _labeled_line_bands(text, a, b, all_nodes, true_band):
+    """Band words from lines that report the a-b edge as a labeled entry.
+
+    Models often label edges in a table row (``| A <-> C | 0.48 | strong |``)
+    or in a bullet headed by the pair (``- **A <-> C**: weight 0.13, weak``).
+    Such an entry is the model's explicit label for that edge and is used in
+    preference to prose windows, which can mix sentences about several
+    edges. In a table row, band words come only from cells that name no
+    other node, so an interpretation column naming controlled-for variables
+    does not contaminate the label. Returns the bands found, or None if no
+    labeled entry reports the pair.
+    """
+    others = [n for n in all_nodes if n not in (a, b)]
+
+    def bands_in(fragment):
+        cl = _COMPARATIVE_PHRASE.sub("[comparative]", fragment.lower())
+        for (_other_band, target_band), patterns in INTENSIFIED_ADJACENT_TERMS.items():
+            if target_band == true_band:
+                for pat in patterns:
+                    cl = re.sub(pat, "[intensifier]", cl)
+        return [bnd for bnd, terms in CALIBRATION_TERMS.items()
+                if (_COMPARATIVE_SAFE_PATTERN[bnd].search(cl) if bnd in _COMPARATIVE_SAFE_PATTERN
+                    else any(term in cl for term in terms))]
+
+    def names_only_pair(fragment):
+        return (_token_in(a, fragment) and _token_in(b, fragment)
+                and not any(_token_in(n, fragment) for n in others))
+
+    found = None
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("|"):
+            cells = stripped.strip("|").split("|")
+            if not any(names_only_pair(c) for c in cells):
+                continue
+            fragments = [c for c in cells if not any(_token_in(n, c) for n in others)]
+        else:
+            m = re.match(r"^(?:[-*\u2022]|\d+[.)])\s+(.{1,160}?):\**\s", stripped)
+            if not (m and names_only_pair(m.group(1))):
+                continue
+            fragments = [stripped]
+        found = found or []
+        for frag in fragments:
+            for bnd in bands_in(frag):
+                if bnd not in found:
+                    found.append(bnd)
+    return found
+
 
 POSITIVE_TERMS = [
     r"positiv\w*",                              # positive, positively (also matches inside "net positive influence")
@@ -388,6 +438,19 @@ def score_calibration(text, ground_truth):
     for e in ground_truth["edges"]:
         a, b = e["pair"]
         band = e["band"]
+        # A table row reporting this edge is the model's explicit label and
+        # takes precedence over prose windows (see _labeled_line_bands).
+        table_bands = _labeled_line_bands(text, a, b, all_nodes, band)
+        if table_bands:
+            if band in table_bands and len(table_bands) == 1:
+                correct += 1
+                details.append(f"{a}-{b} (true band={band}): correct ({table_bands}, labeled entry)")
+            elif band in table_bands:
+                correct += 0.5
+                details.append(f"{a}-{b} (true band={band}): AMBIGUOUS, bands mentioned={table_bands} -- matched: labeled entry")
+            else:
+                details.append(f"{a}-{b} (true band={band}): WRONG, bands mentioned={table_bands} -- matched: labeled entry")
+            continue
         windows = _pair_windows(text, a, b, all_nodes=all_nodes, prefer_clean=True)
         if not windows:
             details.append(f"{a}-{b} (true band={band}): NOT MENTIONED together in text")

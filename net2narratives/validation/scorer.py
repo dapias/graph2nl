@@ -40,29 +40,19 @@ _COMPARATIVE_SAFE_PATTERN = {
 _COMPARATIVE_PHRASE = re.compile(
     r"\b(?:less|more|not\s+as|not\s+so|rather\s+than(?:\s+a)?)\s+(?:strong|weak)(?:ly|er)?\b")
 
-def _labeled_line_bands(text, a, b, all_nodes, true_band):
-    """Band words from lines that report the a-b edge as a labeled entry.
+def _labeled_entry_fragments(text, a, b, all_nodes):
+    """Text fragments from lines that report the a-b edge as a labeled entry.
 
-    Models often label edges in a table row (``| A <-> C | 0.48 | strong |``)
-    or in a bullet headed by the pair (``- **A <-> C**: weight 0.13, weak``).
-    Such an entry is the model's explicit label for that edge and is used in
-    preference to prose windows, which can mix sentences about several
-    edges. In a table row, band words come only from cells that name no
-    other node, so an interpretation column naming controlled-for variables
-    does not contaminate the label. Returns the bands found, or None if no
-    labeled entry reports the pair.
+    Models often report each edge in a table row (``| A <-> C | 0.48 |
+    strong |``) or in a bullet headed by the pair (``- **A <-> C**: weight
+    0.13, weak``). Such an entry is the model's explicit statement about
+    that edge and is used in preference to prose windows, which can mix
+    sentences about several edges. In a table row, only cells that name no
+    other node and are short (at most eight words) are returned, so a
+    free-text interpretation column does not contaminate the entry. Returns a list
+    of fragments, or None if no labeled entry reports the pair.
     """
     others = [n for n in all_nodes if n not in (a, b)]
-
-    def bands_in(fragment):
-        cl = _COMPARATIVE_PHRASE.sub("[comparative]", fragment.lower())
-        for (_other_band, target_band), patterns in INTENSIFIED_ADJACENT_TERMS.items():
-            if target_band == true_band:
-                for pat in patterns:
-                    cl = re.sub(pat, "[intensifier]", cl)
-        return [bnd for bnd, terms in CALIBRATION_TERMS.items()
-                if (_COMPARATIVE_SAFE_PATTERN[bnd].search(cl) if bnd in _COMPARATIVE_SAFE_PATTERN
-                    else any(term in cl for term in terms))]
 
     def names_only_pair(fragment):
         return (_token_in(a, fragment) and _token_in(b, fragment)
@@ -75,19 +65,78 @@ def _labeled_line_bands(text, a, b, all_nodes, true_band):
             cells = stripped.strip("|").split("|")
             if not any(names_only_pair(c) for c in cells):
                 continue
-            fragments = [c for c in cells if not any(_token_in(n, c) for n in others)]
+            # Label cells only: short cells that name no other node. Longer
+            # free-text cells (an "Interpretation" column) are skipped, since
+            # they often compare the edge with others ("same size as the
+            # positive link").
+            fragments = [c for c in cells if len(c.split()) <= 8
+                         and not any(_token_in(n, c) for n in others)]
         else:
             m = re.match(r"^(?:[-*\u2022]|\d+[.)])\s+(.{1,160}?):\**\s", stripped)
-            if not (m and names_only_pair(m.group(1))):
+            # The head before the colon must be a short label naming the pair
+            # (parenthetical descriptions removed), not a sentence.
+            head = re.sub(r"\([^)]*\)", "", m.group(1)) if m else ""
+            if not (m and len(head.split()) <= 12 and names_only_pair(head)):
                 continue
             fragments = [stripped]
-        found = found or []
-        for frag in fragments:
-            for bnd in bands_in(frag):
-                if bnd not in found:
-                    found.append(bnd)
+        found = (found or []) + fragments
     return found
 
+
+def _bands_in(fragment, true_band):
+    """Magnitude bands named in a fragment (comparatives and intensified
+    adjacent phrasings for the true band are masked first)."""
+    cl = _COMPARATIVE_PHRASE.sub("[comparative]", fragment.lower())
+    for (_other_band, target_band), patterns in INTENSIFIED_ADJACENT_TERMS.items():
+        if target_band == true_band:
+            for pat in patterns:
+                cl = re.sub(pat, "[intensifier]", cl)
+    return [bnd for bnd, terms in CALIBRATION_TERMS.items()
+            if (_COMPARATIVE_SAFE_PATTERN[bnd].search(cl) if bnd in _COMPARATIVE_SAFE_PATTERN
+                else any(term in cl for term in terms))]
+
+
+def _labeled_line_bands(text, a, b, all_nodes, true_band):
+    """Bands stated in labeled entries for the a-b edge, or None if none."""
+    frags = _labeled_entry_fragments(text, a, b, all_nodes)
+    if frags is None:
+        return None
+    found = []
+    for frag in frags:
+        for bnd in _bands_in(frag, true_band):
+            if bnd not in found:
+                found.append(bnd)
+    return found
+
+
+_SIGNED_WEIGHT_RE = re.compile(r"(?<![\w.])([-\u2212\u2011\u2013])\s?0?\.\d")
+_UNSIGNED_WEIGHT_RE = re.compile(r"(?<![\w.\-\u2212\u2011\u2013])\+?0?\.\d")
+
+
+def _labeled_line_signs(text, a, b, all_nodes):
+    """Signs stated in labeled entries for the a-b edge, or None if none.
+
+    Uses the explicit words positive/negative when present; otherwise the
+    sign of the cited weight.
+    """
+    frags = _labeled_entry_fragments(text, a, b, all_nodes)
+    if frags is None:
+        return None
+    joined = " ".join(frags).lower()
+    # Remove numeric ranges such as "0.15 - 0.30" (band definitions), whose
+    # dash is not a minus sign.
+    joined = re.sub(r"\d?\.\d+\s*[-\u2212\u2011\u2013\u2014]\s*\d?\.\d+", " ", joined)
+    signs = []
+    if re.search(r"\bpositiv", joined):
+        signs.append("positive")
+    if re.search(r"\bnegativ", joined):
+        signs.append("negative")
+    if not signs:
+        if _SIGNED_WEIGHT_RE.search(joined):
+            signs.append("negative")
+        elif _UNSIGNED_WEIGHT_RE.search(joined):
+            signs.append("positive")
+    return signs
 
 POSITIVE_TERMS = [
     r"positiv\w*",                              # positive, positively (also matches inside "net positive influence")
@@ -129,6 +178,8 @@ DENIAL_PATTERNS = [
     # "Zero association" and "lack of a link" also deny an edge.
     r'\bzero\b[^.]{0,60}\b(association|relationship|link\w*|correlat\w*|connect\w*)\b',
     r'\black(?:s|ing)?\s+(?:of\s+)?(?:a\s+|an\s+)?(association|relationship|link\w*|correlat\w*|connect\w*)\b',
+    # "have an association of exactly zero" (zero stated after the noun).
+    r'\b(association|relationship|correlat\w*)\b[^.]{0,40}\b(?:exactly\s+)?(?:zero|0(?:\.0+)?)\b(?![.]\d)',
 ]
 # Word stems cover forms such as "link", "linked", and "correlations".
 
@@ -491,6 +542,10 @@ def score_calibration(text, ground_truth):
 
 
 _EXPECTED_INFLUENCE_RE = re.compile(r'\bexpected influence\b', re.IGNORECASE)
+# Sentences about node-level centrality rather than a specific association.
+_NODE_LEVEL_RE = re.compile(
+    r"\b(?:strength|centralit\w*|central\b|most connected|connectivity|expected influence|"
+    r"each (?:has|have|with)\b)", re.IGNORECASE)
 # Expected influence is node-level; its sign does not describe a particular edge.
 
 
@@ -510,6 +565,19 @@ def score_sign(text, ground_truth):
     for e in ground_truth["edges"]:
         a, b = e["pair"]
         expected = e["expected_sign"]
+        # A labeled entry (table row or pair-headed bullet) is the model's
+        # explicit statement about this edge and takes precedence over prose.
+        entry_signs = _labeled_line_signs(text, a, b, all_nodes)
+        if entry_signs:
+            if entry_signs == [expected]:
+                correct += 1
+                details.append(f"{a}-{b}: correct ({expected}, labeled entry)")
+            elif expected in entry_signs:
+                correct += 0.5
+                details.append(f"{a}-{b}: AMBIGUOUS -- both signs in labeled entry")
+            else:
+                details.append(f"{a}-{b} (expected={expected}): WRONG -- labeled entry says {entry_signs}")
+            continue
         windows = _pair_windows(text, a, b, all_nodes=all_nodes, prefer_clean=True)
         non_centrality = [w for w in windows if not _EXPECTED_INFLUENCE_RE.search(w)]
         if non_centrality:
@@ -773,7 +841,11 @@ def score_community(text, ground_truth):
                         k > 0 and _SAME_GROUP_SCOPE_RE.search(all_sents[k - 1]) for k in pw_idx)
                     if scoped:
                         continue
-                    relational = [w for w in pw if any(re.search(p, w.lower()) for p in RELATION_TERMS)]
+                    # Node-level centrality statements ("A2 (0.47) and B2 (0.50)
+                    # each have two moderate connections") compare nodes; they
+                    # do not claim an A2-B2 association.
+                    relational = [w for w in pw if any(re.search(p, w.lower()) for p in RELATION_TERMS)
+                                  and not _NODE_LEVEL_RE.search(w)]
                     if relational:
                         false_cross.append((x, y, relational[0][:140].replace(chr(10), ' ')))
     no_false_cross = not false_cross
@@ -855,7 +927,30 @@ def _clause_lookback(text_lower, pos, max_chars=200):
     return window[hits[-1].end():] if hits else window
 
 
-def score_causal_language(text, ground_truth):
+_META_CAUSAL_RE = re.compile(
+    r"causal (?:language|inference|claims?|interpretation|direction|statements?|verbs?|terms?)|"
+    r"\bavoid\w*|unwarranted|not warranted|(?:is|are|would be) (?:not )?appropriate",
+    re.IGNORECASE)
+_QUOTE_OPEN = "\"\u201c\u2018'*"
+_QUOTE_CLOSE = "\"\u201d\u2019'*"
+
+
+def _sentence_around(text, pos):
+    start = max(text.rfind(". ", 0, pos), text.rfind("\n", 0, pos)) + 1
+    ends = [i for i in (text.find(". ", pos), text.find("\n", pos)) if i != -1]
+    return text[start:min(ends) if ends else len(text)]
+
+
+def _is_quoted(text, start, end):
+    """True if the match sits inside a short quotation, e.g. "causes"."""
+    before = text[max(0, start - 30):start]
+    after = text[end:end + 30]
+    opened = max(before.rfind(q) for q in _QUOTE_OPEN)
+    return (opened != -1 and "\n" not in before[opened:]
+            and any(q in after.split("\n")[0] for q in _QUOTE_CLOSE))
+
+
+def score_causal_language(text, ground_truth, nodes=None):
     """Scan the full text for any banned causal verb, with a clause-bounded
     lookback (see _clause_lookback) for negation cues ('not', 'does not
     mean', 'rather than', ...) -- a hit preceded by a negation in the SAME
@@ -871,7 +966,17 @@ def score_causal_language(text, ground_truth):
         for m in re.finditer(re.escape(term), text_lower):
             lookback = _clause_lookback(text_lower, m.start())
             ctx = text[max(0, m.start() - 60):m.start() + 60].strip()
+            sentence = _sentence_around(text, m.start())
             if any(re.search(cue, lookback) for cue in NEGATION_CUES):
+                excused.append((term, ctx))
+            elif _is_quoted(text, m.start(), m.end()) or _META_CAUSAL_RE.search(sentence):
+                # Mentioning a banned term ("avoid terms such as 'causes'")
+                # is not using it.
+                excused.append((term, ctx))
+            elif nodes and not any(_token_in(n, sentence) for n in nodes):
+                # A sentence naming no variable ("identical centrality due to
+                # the symmetric structure") describes the method or the
+                # measures, not a causal relation between variables.
                 excused.append((term, ctx))
             else:
                 violations.append((term, ctx))
@@ -898,7 +1003,11 @@ def score(test_case, llm_text):
     raw interpretation output (string)."""
     gt = test_case["ground_truth"]
     fn = SCORERS[gt["type"]]
-    result = fn(_normalize(llm_text), gt)
+    if gt["type"] == "causal_language":
+        nodes = [n["id"] for n in test_case.get("network", {}).get("nodes", [])]
+        result = fn(_normalize(llm_text), gt, nodes=nodes)
+    else:
+        result = fn(_normalize(llm_text), gt)
     result["test_id"] = test_case["id"]
     result["competency"] = test_case["competency"]
     return result

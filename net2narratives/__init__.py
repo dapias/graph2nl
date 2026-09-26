@@ -7,4 +7,4 @@ The validation suite includes hand-built and procedurally generated
 networks with known answers for six interpretation competencies.
 """
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
